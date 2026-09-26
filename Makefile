@@ -40,7 +40,7 @@ format: ## Format
 	cd worker && uv run ruff format .
 
 typecheck: ## Type check
-	cd worker && uv run mypy src
+	cd worker && uv run mypy src tests
 
 check: ## Full quality pass (format, lint, typecheck, test)
 	$(MAKE) format

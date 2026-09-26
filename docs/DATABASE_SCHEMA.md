@@ -60,15 +60,15 @@ La coda. Al massimo un job vivo per riga e colonna.
 | column_def_id | bigint | FK |
 | row_pk | jsonb | |
 | source_hash | bytea | hash delle sorgenti al momento dell'ultimo accodamento; il trigger lo aggiorna se la riga cambia mentre il job è vivo |
-| status | ai.job_status | `pending`, `claimed`, `done`, `failed`, `dead` |
-| attempts | integer | tentativi consumati |
+| status | ai.job_status | `pending`, `claimed`, `done`, `dead`. Un tentativo fallito ma ripetibile torna `pending` con `next_attempt_at` nel futuro |
+| attempts | integer | incrementato al claim; `fail_job` confronta con `max_attempts` |
 | next_attempt_at | timestamptz | il claim prende solo job con `next_attempt_at <= now()` |
 | claimed_by | text | id del worker |
 | claimed_at | timestamptz | base per `reclaim_stale` |
 | last_error | text | |
 | created_at, updated_at | timestamptz | |
 
-Unique parziale su `(column_def_id, row_pk) WHERE status IN ('pending', 'claimed')`. Indice su `(status, next_attempt_at)` per il claim. I job `done` si potano con `ai.prune_jobs(interval)`.
+Unique parziale su `(column_def_id, row_pk) WHERE status IN ('pending', 'claimed')`. Indice parziale su `(next_attempt_at, id)` per i `pending`, su `claimed_at` per i `claimed`. I job `done` si potano con `ai.prune_jobs(interval)`. Se la riga sorgente sparisce prima del claim, il job viene cancellato.
 
 ### result
 
@@ -110,11 +110,11 @@ Unique parziale su `(column_def_id, row_pk) WHERE is_current`. Indice su `(colum
 
 ## Funzioni pubbliche
 
-Gestione: `ai.add_column`, `ai.update_column`, `ai.drop_column`, `ai.enable`, `ai.disable`, `ai.backfill`, `ai.unpin`, `ai.prune_jobs`.
+Gestione: `ai.add_column`, `ai.update_column` (nuova versione), `ai.configure` (policy senza versione), `ai.drop_column`, `ai.enable`, `ai.disable`, `ai.backfill`, `ai.unpin`, `ai.retry_dead`, `ai.prune_jobs`. Ogni funzione ha un `COMMENT` leggibile con `\df+ ai.*`.
 
-Contratto worker: `ai.claim_jobs(worker_id text, batch_size integer)`, `ai.complete_job(...)`, `ai.fail_job(...)`, `ai.reclaim_stale(timeout interval)`. Canale `NOTIFY ai_jobs` a ogni accodamento.
+Contratto worker: `ai.claim_jobs(worker_id, batch_size, backends[])`, `ai.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms)` che restituisce `ai.complete_outcome` (`written`, `held`, `stale_requeued`, `cancelled`), `ai.fail_job(job_id, error, retryable)` che restituisce lo stato risultante, `ai.reclaim_stale(timeout)`. Canale `NOTIFY ai_jobs` con l'id della definizione a ogni accodamento.
 
-Trigger per tabella utente: `ai_enqueue_<column>` (AFTER INSERT OR UPDATE OF sorgenti) e `ai_override_<column>` (AFTER UPDATE OF target).
+Trigger per tabella utente: `ai_enqueue_<column>` (AFTER INSERT OR UPDATE OF sorgenti) e `ai_override_<column>` (AFTER UPDATE OF target). Il secondo ignora le scritture fatte dentro `complete_job` (GUC `ai.writer = 'worker'`); un UPDATE a NULL fatto a mano toglie il pin e riaccoda la riga.
 
 ## Relazioni
 
@@ -122,4 +122,4 @@ Trigger per tabella utente: `ai_enqueue_<column>` (AFTER INSERT OR UPDATE OF sor
 
 ## Migrazioni
 
-File numerati in `sql/`, applicati in ordine da `aicol install`, tracciati in `ai.schema_version`. Un file applicato non si riscrive.
+File numerati in `sql/`, applicati in ordine da `aicol install` (una transazione per file), tracciati in `ai.schema_version`. Un file applicato non si riscrive.

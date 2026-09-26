@@ -16,7 +16,7 @@ Il progetto aggiunge a PostgreSQL le colonne derivate da modello: l'utente dichi
 2. Il worker riceve la `NOTIFY` sul canale `ai_jobs` (o si sveglia al poll interval) e chiama `ai.claim_jobs(worker_id, batch_size)`. La funzione seleziona job pronti con `FOR UPDATE SKIP LOCKED`, li marca `claimed`, e restituisce per ciascuno i valori sorgente letti con SQL dinamico più la versione della definizione (prompt, modello, schema di output). Il worker raggruppa per definizione e manda le richieste in parallelo, con un limite di concorrenza per provider.
 3. Il worker chiama il modello con output strutturato (JSON schema derivato dal tipo dichiarato) e riceve `{value, confidence}`.
 4. `ai.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms)`: verifica che l'hash processato coincida con quello corrente del job (la riga può essere cambiata nel frattempo), valida il valore rispetto al tipo, scrive la colonna target con SQL dinamico dentro un guard (`SET LOCAL ai.writer = 'worker'`) così il trigger di override non lo prende per una correzione umana, inserisce il risultato nel lineage marcandolo corrente, chiude il job. Se l'hash non coincide, il risultato entra nel lineage come non corrente e il job torna `pending`.
-5. In caso di errore il worker chiama `ai.fail_job(job_id, error, retryable)`: se retryable e sotto il massimo tentativi, il job torna `pending` con `next_attempt_at` esponenziale; altrimenti diventa `dead`, visibile in `ai.dead_jobs`.
+5. In caso di errore il worker chiama `ai.fail_job(job_id, error, retryable)`: se retryable e sotto il massimo tentativi, il job torna `pending` con `next_attempt_at` esponenziale; altrimenti diventa `dead`, visibile in `ai.dead_jobs` e recuperabile con `ai.retry_dead`. Un worker che muore lascia job `claimed`: `ai.reclaim_stale` li rimette in coda dopo il timeout.
 
 ## Cambio di prompt o modello
 
@@ -24,7 +24,7 @@ Il progetto aggiunge a PostgreSQL le colonne derivate da modello: l'utente dichi
 
 ## Override umano
 
-Un `UPDATE ticket SET urgency = 'low'` fuori dal guard del worker scatta il trigger di override: inserisce un risultato con `source = 'human'`, lo marca corrente, cancella i job vivi per quella riga. Da lì la riga è pinnata: né il cambio prompt né il cambio delle sorgenti la ricalcolano, salvo policy `until_source_change` sulla definizione. `ai.unpin(table, pk, column)` toglie il pin e riaccoda. L'insieme degli override umani è anche la base dei few-shot futuri (vedi ROADMAP).
+Un `UPDATE ticket SET urgency = 'low'` fuori dal guard del worker scatta il trigger di override: inserisce un risultato con `source = 'human'`, lo marca corrente, cancella i job vivi per quella riga. Da lì la riga è pinnata: né il cambio prompt né il cambio delle sorgenti la ricalcolano, salvo policy `until_source_change` sulla definizione. `ai.unpin(table, column, pk)` toglie il pin e riaccoda; lo stesso effetto si ottiene con un `UPDATE` che mette la colonna a NULL, il gesto naturale per dire "ricalcola". L'insieme degli override umani è anche la base dei few-shot futuri (vedi ROADMAP).
 
 ## Confidenza
 
