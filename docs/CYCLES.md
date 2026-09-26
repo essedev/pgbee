@@ -95,3 +95,17 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 **Decisioni.** #19 (nome `pgbee`, schema `bee`, unica eccezione alla regola sui file SQL già committati), #20 (un ciclo e una connessione per backend).
 
 **Prossimo passo.** Valutare il criterio di uscita in `ANALYSIS.md`, ora con i dati della prova sul campo, e decidere se fare M4 (demo UI).
+
+## Ciclo 7 (26 settembre 2026): review esterna, risultato sotto la versione del claim
+
+**Obiettivo.** Chiudere i difetti emersi da una review esterna del progetto (Codex, gpt-6-astra) prima di decidere che cosa farne.
+
+**Fatto.**
+
+- Bug di lineage corretto in `sql/0011`, riprodotto prima di toccarlo: `bee.complete_job` registrava ogni risultato sotto la versione corrente al completamento, quindi un `update_column` arrivato mentre un job era in calcolo faceva passare il valore del vecchio prompt per la versione nuova, contato come aggiornato e mai ricalcolato. `bee.claim_jobs` salva la versione nel job (`bee.job.claimed_version_id`); `complete_job` tratta un cambio di versione come un cambio delle sorgenti: risultato nel lineage sotto la versione vera, non corrente, riga di nuovo in coda. I job reclamati prima dello 0011 ricadono sulla versione corrente. Nessuna firma del contratto cambia; il test copre il caso.
+- `demo/cfpb/field_test.py` stampa la stima (0.000136 USD per riga, misurata sulla prova completa) e chiede conferma prima di spendere, `--yes` salta la domanda, come `demo/run.py`.
+- `ANALYSIS.md`: il 79 per cento della prova sul campo è accordo con un'etichetta rumorosa, non un limite inferiore dimostrato dell'accuratezza.
+
+**Decisioni.** Nessuna nuova: lo 0011 ripristina l'invariante di #4 (ogni risultato riferisce la versione che l'ha prodotto). La review ha proposto anche un piano di validazione in quattro settimane, registrato in `ROADMAP.md` come proposta in attesa di verdetto.
+
+**Prossimo passo.** Decidere sul piano di validazione; se passa, sostituisce la valutazione del criterio di uscita in `ANALYSIS.md` fatta solo sui dati propri.
