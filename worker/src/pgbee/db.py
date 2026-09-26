@@ -28,6 +28,11 @@ class Contract:
     async def close(self) -> None:
         await self._conn.close()
 
+    @property
+    def broken(self) -> bool:
+        """True when the connection is lost: the worker must stop, not fail jobs."""
+        return self._conn.broken or self._conn.closed
+
     async def claim(
         self, worker_id: str, batch_size: int, backends: Sequence[str] = WORKER_BACKENDS
     ) -> list[Job]:

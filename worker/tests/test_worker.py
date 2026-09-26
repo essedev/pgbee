@@ -399,3 +399,17 @@ def test_claim_brings_only_ready_decision_siblings_with_the_same_model(
         "the same model sibling comes along; other models and llm columns do not"
     )
     assert claimed[0]["id"] == claimed[1]["id"] != first
+
+
+async def test_value_refused_by_the_database_fails_only_its_job(
+    conn: psycopg.Connection[DictRow], ticket: str, database_url: str
+) -> None:
+    add_urgency(conn)
+    # A rule of the user's own: the worker must not stop on it, nor retry it forever.
+    conn.execute(
+        "ALTER TABLE ticket ADD CONSTRAINT no_high CHECK (urgency IS DISTINCT FROM 'high')"
+    )
+    stats = await run_once(database_url, FakeProvider())
+    assert stats.claimed == 3 and stats.failed == 1 and stats.outcomes == {"written": 2}
+    dead = conn.execute("SELECT last_error FROM bee.dead_jobs").fetchall()
+    assert len(dead) == 1 and "CheckViolation" in dead[0]["last_error"]

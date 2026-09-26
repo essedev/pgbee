@@ -215,15 +215,19 @@ class Worker:
 
     async def _complete(self, job: Job, result: LlmResult, stats: BatchStats) -> None:
         usage = priced(result.usage, job.config)
-        outcome = await self._db.complete(
-            job,
-            result.value,
-            confidence=result.confidence,
-            model=result.model,
-            usage=usage,
-            latency_ms=result.latency_ms,
-            details=result.details,
-        )
+        try:
+            outcome = await self._db.complete(
+                job,
+                result.value,
+                confidence=result.confidence,
+                model=result.model,
+                usage=usage,
+                latency_ms=result.latency_ms,
+                details=result.details,
+            )
+        except psycopg.Error as exc:
+            await self._rejected(job, exc, stats)
+            return
         stats.outcomes[outcome] += 1
         log.info(
             "job.done",
@@ -252,18 +256,42 @@ class Worker:
         per_job_latency = result.latency_ms // max(1, len(jobs))
         usage = _split_usage(result.usage, len(jobs))
         for job, vector in zip(jobs, result.vectors, strict=True):
-            outcome = await self._db.complete(
-                job,
-                vector,
-                confidence=None,
-                model=result.model,
-                usage=priced(usage, job.config),
-                latency_ms=per_job_latency,
-            )
+            try:
+                outcome = await self._db.complete(
+                    job,
+                    vector,
+                    confidence=None,
+                    model=result.model,
+                    usage=priced(usage, job.config),
+                    latency_ms=per_job_latency,
+                )
+            except psycopg.Error as exc:
+                await self._rejected(job, exc, stats)
+                continue
             stats.outcomes[outcome] += 1
         log.info(
             "embedding.done", count=len(jobs), model=result.model, latency_ms=result.latency_ms
         )
+
+    async def _rejected(self, job: Job, exc: psycopg.Error, stats: BatchStats) -> None:
+        """complete_job raised. A lost connection stops the worker (its jobs are reclaimed);
+        otherwise the job fails, so one row cannot stop the queue: a lock conflict or a timeout
+        is retried, a value the database refuses (a constraint or trigger on the user's table)
+        is not."""
+        if self._db.broken:
+            raise exc
+        transient = (
+            psycopg.errors.TransactionRollback,
+            psycopg.errors.DeadlockDetected,
+            psycopg.errors.SerializationFailure,
+            psycopg.errors.LockNotAvailable,
+            psycopg.errors.QueryCanceled,
+        )
+        error = ProviderError(
+            f"database refused the result: {type(exc).__name__}: {exc}",
+            retryable=isinstance(exc, transient),
+        )
+        await self._fail(job, error, stats)
 
     async def _fail(self, job: Job, error: ProviderError, stats: BatchStats) -> None:
         stats.failed += 1
