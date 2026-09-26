@@ -6,7 +6,7 @@ Il progetto aggiunge a PostgreSQL le colonne derivate da modello: l'utente dichi
 
 ## Componenti
 
-- **Estensione SQL** (`sql/`): schema `ai` con catalogo delle colonne derivate, versioni, coda dei job, lineage dei risultati, trigger sulle tabelle utente, funzioni del contratto worker. SQL e PL/pgSQL puri, nessun codice compilato: si installa su qualunque Postgres 15+, gestito incluso. È la sorgente di verità del modello.
+- **Estensione SQL** (`sql/`): schema `ai` con catalogo delle colonne derivate, versioni, coda dei job, lineage dei risultati, trigger sulle tabelle utente, funzioni del contratto worker. SQL e PL/pgSQL puri, nessun codice compilato: si installa su qualunque Postgres 15+, gestito incluso, con `aicol install`, oppure come estensione vera (`CREATE EXTENSION aicol`) dove si possono copiare file nella `sharedir` del server. I file vivono in `worker/src/aicol/sql/` e viaggiano nel wheel del worker. È la sorgente di verità del modello.
 - **Worker** (`worker/`): processo Python (pacchetto `aicol`) con CLI. Installa e aggiorna l'estensione (`aicol install`), esegue il ciclo di lavoro (`aicol run`), mostra lo stato (`aicol status`). Parla con i modelli via OpenRouter. Non conosce le tabelle dell'utente: riceve dai job i valori sorgente già letti dal database e restituisce valori.
 - **Demo** (`demo/`): Postgres in Docker, una tabella di ticket di assistenza in italiano con dati realistici, sei colonne derivate: quattro `llm` (urgenza, categoria, riassunto, estrazione strutturata), una `decision` (flag di revisione umana), un `embedding` per la ricerca dei ticket simili. `run.py` esercita il ciclo completo in otto passi (dichiarazione, coda, ticket nuovo, override, cambio prompt, ricerca semantica, lineage e costi); `compare_models.py` misura accuratezza, costo e latenza dei modelli sulle etichette di `gold.json`, risultati in `results/models.json`. La UI è la milestone M4 (ROADMAP).
 
@@ -28,7 +28,7 @@ Il progetto aggiunge a PostgreSQL le colonne derivate da modello: l'utente dichi
 
 ## Tetto di spesa
 
-`budget_usd` nella config di una definizione (con `budget_period` `day`, `month` o `total`) limita quanto quella colonna può spendere. Un trigger su `ai.result` somma `usage.cost` in `ai.spend` per giorno UTC; `ai.claim_jobs` valuta il budget una volta per definizione e salta quelle esaurite, i cui job restano `pending` finché il periodo non si rinnova o `ai.configure` alza il tetto (e sveglia i worker con una `NOTIFY`). Il controllo avviene al claim, quindi lo sforamento massimo è un batch già in volo per worker. Default: nessun tetto (decisione #13). `aicol status` e la vista `ai.budgets` mostrano speso e residuo.
+`budget_usd` nella config di una definizione (con `budget_period` `day`, `month` o `total`) limita quanto quella colonna può spendere. `ai.complete_job` somma `usage.cost` in `ai.spend` per giorno UTC per ogni risultato da modello che registra; `ai.claim_jobs` valuta il budget una volta per definizione e salta quelle esaurite, i cui job restano `pending` finché il periodo non si rinnova o `ai.configure` alza il tetto (e sveglia i worker con una `NOTIFY`). Il controllo avviene al claim, quindi lo sforamento massimo è un batch già in volo per worker. Default: nessun tetto (decisione #13). `aicol status` e la vista `ai.budgets` mostrano speso e residuo.
 
 ## Retention
 

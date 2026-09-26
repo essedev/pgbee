@@ -31,7 +31,7 @@ test: ## Run tests (needs db-up)
 	cd worker && uv run pytest
 
 test-llm: ## Run also the tests that call a real model (costs money)
-	cd worker && uv run pytest -m "llm or not llm"
+	cd worker && uv run pytest -m 'not extension'
 
 lint: ## Lint
 	cd worker && uv run ruff check . ../demo
@@ -47,6 +47,18 @@ check: ## Full quality pass (format, lint, typecheck, test)
 	$(MAKE) lint
 	$(MAKE) typecheck
 	$(MAKE) test
+
+extension-image: ## Build the Postgres image with CREATE EXTENSION aicol available (aicol-postgres:dev)
+	rm -rf worker/dist/extension
+	cd worker && uv run aicol extension-files dist/extension
+	docker build -f docker/postgres/Dockerfile -t aicol-postgres:dev worker/dist/extension
+
+test-extension: extension-image ## Extension tests (create, update chain, dump and restore) on a throwaway container, port 4463
+	docker rm -f aicol-ext-test >/dev/null 2>&1 || true
+	docker run -d --name aicol-ext-test -e POSTGRES_USER=aidb -e POSTGRES_PASSWORD=aidb \
+		-e POSTGRES_DB=aidb -p 4463:5432 aicol-postgres:dev >/dev/null
+	until docker exec aicol-ext-test pg_isready -U aidb -h localhost >/dev/null 2>&1; do sleep 1; done
+	cd worker && uv run pytest -m extension; status=$$?; docker rm -f aicol-ext-test >/dev/null; exit $$status
 
 build: ## Build the worker wheel and sdist (SQL files included) into worker/dist
 	cd worker && rm -rf dist && uv build

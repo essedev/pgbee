@@ -5,15 +5,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-from typing import Any
+from pathlib import Path
+from typing import Annotated, Any
 
 import psycopg
 import structlog
 import typer
 from psycopg.rows import dict_row
 
+from aicol import extension
 from aicol.db import Contract
-from aicol.installer import install
+from aicol.installer import InstalledAsExtension, install
 from aicol.providers import OpenRouterProvider
 from aicol.settings import Settings, load_settings
 from aicol.worker import Worker
@@ -40,11 +42,23 @@ def install_cmd() -> None:
     """Apply the SQL files in sql/ that the database has not seen yet."""
     settings = load_settings()
     with psycopg.connect(settings.database_url) as conn:
-        applied = install(conn)
+        try:
+            applied = install(conn)
+        except InstalledAsExtension as exc:
+            raise typer.BadParameter(str(exc)) from exc
     if applied:
         typer.echo(f"applied: {', '.join(str(v) for v in applied)}")
     else:
         typer.echo("up to date")
+
+
+@app.command("extension-files")
+def extension_files_cmd(
+    out_dir: Annotated[Path, typer.Argument(help="Where to write aicol.control and the scripts.")],
+) -> None:
+    """Write the files for CREATE EXTENSION aicol, to copy into `pg_config --sharedir`/extension."""
+    for path in extension.build(out_dir):
+        typer.echo(path)
 
 
 @app.command("status")

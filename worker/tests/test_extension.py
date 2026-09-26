@@ -599,3 +599,18 @@ def test_enum_schema_with_descriptions_works_for_llm_too(
             "SELECT ai.add_column('ticket', 'x', array['body'], 'enum', p_prompt => 'p', p_model => 'm',"
             " p_output_schema => '{\"low\": 1}')"
         )
+
+
+def test_current_version_always_belongs_to_its_column(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    conn.execute("SELECT ai.update_column('ticket', 'urgency', p_prompt => 'v2')")
+    conn.execute("SELECT ai.drop_column('ticket', 'urgency')")
+    add_urgency(conn)
+    orphans = scalar(
+        conn,
+        "SELECT count(*) FROM ai.column_def d LEFT JOIN ai.column_version v"
+        " ON v.id = d.current_version_id AND v.column_def_id = d.id WHERE v.id IS NULL",
+    )
+    assert orphans == 0

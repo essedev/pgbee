@@ -49,5 +49,8 @@ python_version = "3.13"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-markers = ["llm: calls a real model provider, excluded by default"]
-addopts = "-m 'not llm'"
+markers = [
+    "llm: calls a real model provider, excluded by default",
+    "extension: needs the Postgres image with the aicol extension (make test-extension)",
+]
+addopts = "-m 'not llm and not extension'"

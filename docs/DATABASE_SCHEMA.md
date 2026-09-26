@@ -25,7 +25,7 @@ Una colonna derivata dichiarata. La configurazione che cambia il risultato (prom
 | pk_columns | text[] | letta da `pg_constraint` in `add_column` |
 | source_columns | text[] | colonne che alimentano il modello |
 | output_type | ai.output_type | `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector` |
-| current_version_id | bigint | FK `column_version`, nullable solo durante la creazione |
+| current_version_id | bigint | versione corrente in `column_version`, nullable solo durante la creazione. Senza FK: formerebbe un ciclo con `column_version.column_def_id` e romperebbe il restore dell'estensione (0010) |
 | config | jsonb | `batch_size`, `max_attempts`, `backoff_base_seconds`, `confidence_threshold`, `low_confidence_policy` (`write`/`hold`), `override_policy` (`pin`/`until_source_change`), `concurrency`, `budget_usd` (numero in USD, null senza tetto), `budget_period` (`day`/`month`/`total`, default `month`), `backfill_chunk` (righe per chunk di backfill, 1-100000, default 1000), `lineage_retention_days` (intero >= 1, null per conservare tutto, default null). Validato da un trigger su insert e update |
 | enabled | boolean | disabilitata: i trigger restano ma non accodano |
 | backfill_pending | boolean | una scansione della tabella è in corso |
@@ -99,7 +99,7 @@ Unique parziale su `(column_def_id, row_pk) WHERE is_current`. Indice su `(colum
 
 ### spend
 
-La spesa per colonna e giorno UTC, alimentata da un trigger su ogni `result` da modello (anche quelli scartati perché la riga era cambiata: sono stati pagati). Resta anche quando il lineage verrà potato.
+La spesa per colonna e giorno UTC, alimentata da `ai.complete_job` per ogni `result` da modello che registra (anche quelli scartati perché la riga era cambiata: sono stati pagati). Non da un trigger su `ai.result`, che scatterebbe anche durante un `pg_restore`. Resta anche quando il lineage verrà potato.
 
 | Campo | Tipo | Note |
 |---|---|---|
@@ -144,4 +144,9 @@ Trigger per tabella utente: `ai_enqueue_<column>` (AFTER INSERT OR UPDATE OF sor
 
 ## Migrazioni
 
-File numerati in `sql/`, applicati in ordine da `aicol install` (una transazione per file), tracciati in `ai.schema_version`. Un file applicato non si riscrive.
+File numerati in `worker/src/aicol/sql/` (`sql/` alla radice è un link), tracciati in `ai.schema_version`. Un file applicato non si riscrive. Due modi di applicarli, esclusivi fra loro:
+
+- `aicol install`: una transazione per file, funziona su qualunque Postgres raggiungibile, gestiti inclusi.
+- `CREATE EXTENSION aicol`: `aicol extension-files` genera `aicol.control`, `aicol--0.1.sql` dal file 0001 e uno script `aicol--0.(N-1)--0.N.sql` per ogni file successivo; Postgres li concatena sia all'installazione sia con `ALTER EXTENSION aicol UPDATE`. Ogni script marca tabelle e sequenze di `ai` (tranne `schema_version`) con `pg_extension_config_dump`, così `pg_dump` ne salva i dati. Richiede accesso alla `sharedir` del server, quindi solo Postgres self-hosted.
+
+`aicol install` rifiuta un database dove l'estensione esiste già.

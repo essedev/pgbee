@@ -9,7 +9,7 @@ Colonne derivate da modello per PostgreSQL: estensione in SQL puro (`sql/`) che 
 - Estensione: SQL e PL/pgSQL, Postgres 15+, nessun codice compilato. Schema `ai`.
 - Worker: Python 3.13 con `uv`, psycopg 3 async (niente ORM, niente Alembic: le migrazioni sono i file di `sql/`), SDK OpenAI puntato a OpenRouter, typer per la CLI, structlog.
 - Test: pytest su Postgres vero in Docker.
-- Porte (portsage): Postgres 4460, demo API 4461, demo web 4462.
+- Porte (portsage): Postgres 4460, demo API 4461, demo web 4462, container usa e getta di `make test-extension` 4463.
 
 ## Comandi (via Makefile)
 
@@ -19,7 +19,7 @@ Colonne derivate da modello per PostgreSQL: estensione in SQL puro (`sql/`) che 
 - `make worker`: avvia il worker (`aicol run`).
 - `make demo`: seed della demo, dichiarazione delle colonne, worker.
 - `make status`: colonne derivate e contatori della coda (`aicol status`).
-- `make test`, `make test-llm` (include i test marcati `llm`, costa), `make lint`, `make format`, `make typecheck`, `make check`, `make build`, `make clean`; `make help` li elenca tutti.
+- `make test`, `make test-llm` (include i test marcati `llm`, costa), `make lint`, `make format`, `make typecheck`, `make check`, `make build`, `make extension-image`, `make test-extension` (serve Docker, marker `extension`), `make clean`; `make help` li elenca tutti.
 - Un solo run di test alla volta: il conftest ricrea il database.
 
 ## Convenzioni

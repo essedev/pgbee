@@ -8,7 +8,7 @@ Status: experiment. See `docs/ANALYSIS.md` for the reasoning and the exit criter
 
 ## Stack
 
-- Extension: plain SQL and PL/pgSQL in `sql/`, installs on any PostgreSQL 15+ including managed ones.
+- Extension: plain SQL and PL/pgSQL in `sql/`, installs on any PostgreSQL 15+ including managed ones, or as a real extension (`CREATE EXTENSION aicol`) on self-hosted servers.
 - Worker: Python 3.13 package `aicol` in `worker/`, psycopg 3, OpenRouter via the OpenAI SDK.
 - Demo: Docker Compose Postgres plus a support-ticket dataset in `demo/`.
 
@@ -20,6 +20,18 @@ make db-up          # Postgres on port 4460
 make db-install     # apply sql/ to the database
 make demo           # seed tickets, declare derived columns, run the worker
 ```
+
+Outside this repository:
+
+```bash
+make build                                   # worker/dist/aicol-*.whl, SQL files included
+uvx --from worker/dist/aicol-0.1.0-py3-none-any.whl aicol install   # needs DATABASE_URL
+# or, on a self-hosted server, as a Postgres extension:
+aicol extension-files ./ext && cp ./ext/* "$(pg_config --sharedir)/extension/"
+psql -c 'CREATE EXTENSION aicol'
+```
+
+`make extension-image` builds `aicol-postgres:dev`, pgvector's image with the extension files in place.
 
 Configuration is read from `worker/.env` (see `worker/.env.example`). In production the worker should log in with a role in `ai_worker`, which only gets the queue functions: `CREATE ROLE aicol LOGIN PASSWORD '...' IN ROLE ai_worker`.
 

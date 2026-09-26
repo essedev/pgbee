@@ -14,6 +14,10 @@ from psycopg.rows import tuple_row
 SQL_FILE_RE = re.compile(r"^(\d{4})_[a-z0-9_]+\.sql$")
 
 
+class InstalledAsExtension(RuntimeError):
+    """The database has ai-db as a Postgres extension; the file installer must not touch it."""
+
+
 @dataclass(frozen=True)
 class SqlFile:
     version: int
@@ -56,7 +60,16 @@ def applied_versions(conn: psycopg.Connection[Any]) -> set[int]:
 
 
 def install(conn: psycopg.Connection[Any], directory: Path | None = None) -> list[int]:
-    """Apply every SQL file not yet recorded, one transaction each. Returns applied versions."""
+    """Apply every SQL file not yet recorded, one transaction each. Returns applied versions.
+
+    Refuses a database where ai-db was installed as an extension: there the files arrive through
+    ALTER EXTENSION aicol UPDATE, and applying them here would detach objects from it.
+    """
+    if conn.execute("SELECT 1 FROM pg_extension WHERE extname = 'aicol'").fetchone():
+        raise InstalledAsExtension(
+            "ai-db is installed as the extension aicol:"
+            " upgrade it with ALTER EXTENSION aicol UPDATE"
+        )
     applied = applied_versions(conn)
     done: list[int] = []
     for sql_file in sql_files(directory):
