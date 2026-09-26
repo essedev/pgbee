@@ -1,46 +1,175 @@
 # pgbee
 
-AI-derived columns for PostgreSQL. Like a worker bee filling cells: you declare how a column is derived, pgbee keeps every row filled, versioned and accounted for.
+AI-derived columns for PostgreSQL. Like a worker bee filling cells: you declare how a column is derived from other columns, and pgbee keeps every row filled, versioned and accounted for.
 
-Declare once that `ticket.urgency` is derived from `ticket.body` with a prompt and a model. From then on every new or changed row gets its value: transactional queue, batching, retries, prompt and model versioning, per-row lineage, confidence, human overrides that stick, and a spending cap per column. The database owns the guarantee; an external worker makes the model calls. The model is one backend, not the product.
-
-Status: experiment. See `docs/ANALYSIS.md` for the reasoning and the exit criterion.
-
-## Stack
-
-- Extension: plain SQL and PL/pgSQL in `sql/`, installs on any PostgreSQL 15+ including managed ones, or as a real extension (`CREATE EXTENSION pgbee`) on self-hosted servers.
-- Worker: Python 3.13 package `pgbee` in `worker/`, psycopg 3, OpenRouter via the OpenAI SDK.
-- Demo: Docker Compose Postgres plus a support-ticket dataset in `demo/`, and a field test on 3000 real CFPB consumer complaints in `demo/cfpb/`.
-
-## Quick start
-
-```bash
-make install        # uv sync
-make db-up          # Postgres on port 4460
-make db-install     # apply sql/ to the database
-make demo           # seed tickets, declare derived columns, run the worker
+```sql
+SELECT bee.add_column('ticket', 'category', array['body'], 'enum', 'decision',
+  p_prompt => 'What is this support ticket about?',
+  p_model  => 'typesafe/jev-1.13',
+  p_output_schema => '{"bug": "something is broken", "billing": "charges and invoices",
+                       "account": "login and account data", "question": "how to do something"}');
 ```
 
-Outside this repository:
+From then on every new or changed row gets its `category`: the database queues the work in the same transaction as your insert, an external worker calls the model, and the value lands in the column. Change the prompt and only the rows computed with the old one are recomputed. Correct a value by hand and the model never overwrites it. Every value keeps its lineage: which model, which prompt version, which confidence, how much it cost.
+
+Calling a model from SQL is easy and many tools do it. The hard part, and the point of pgbee, is the state around the call: what is stale, what was overridden, what failed, what it costs.
+
+**Status: alpha (0.1).** The test suite passes on PostgreSQL 15, 16, 17 and 18. A field test on 3000 real consumer complaints ran 12,000 model calls with no failure (numbers below). Nobody runs it in production yet, and managed Postgres services have not been tested. Feedback and issues are welcome.
+
+## Quickstart
+
+You need Docker and an [OpenRouter](https://openrouter.ai) key.
 
 ```bash
-make build                                   # worker/dist/pgbee-*.whl, SQL files included
-uvx --from worker/dist/pgbee-0.1.0-py3-none-any.whl pgbee install   # needs DATABASE_URL
-# or, on a self-hosted server, as a Postgres extension:
-pgbee extension-files ./ext && cp ./ext/* "$(pg_config --sharedir)/extension/"
-psql -c 'CREATE EXTENSION pgbee'
+git clone https://github.com/essedev/pgbee && cd pgbee
+echo 'OPENROUTER_API_KEY=sk-or-...' > .env
+docker compose up -d                                   # Postgres, pgbee install, worker
+docker compose exec -T postgres psql -U pgbee < examples/quickstart.sql
 ```
 
-`make worker-image` builds `pgbee-worker:dev` (`docker run --env-file ... pgbee-worker:dev` runs the queue; `.env` files never enter the image). `make extension-image` builds `pgbee-postgres:dev`, pgvector's image with the extension files in place.
+[`examples/quickstart.sql`](examples/quickstart.sql) creates a table of eight support tickets and declares three derived columns: a category (decision model), a one-line summary (LLM) and an embedding. A few seconds later:
 
-Configuration is read from `worker/.env` (see `worker/.env.example`). In production the worker should log in with a role in `bee_worker`, which only gets the queue functions: `CREATE ROLE pgbee LOGIN PASSWORD '...' IN ROLE bee_worker`.
+```
+docker compose exec postgres psql -U pgbee -c 'SELECT id, category, summary FROM ticket'
 
-## Documentation
+ id | category |                           summary
+----+----------+-------------------------------------------------------------
+  1 | bug      | Checkout error 500 prevents payments, causing lost orders.
+  2 | billing  | Request a refund for a duplicate Pro plan charge.
+  3 | question | Asking how to export a customer list to CSV
+  4 | account  | Password reset email not received, preventing login.
+  ...
+```
 
-- [Analysis and competition](docs/ANALYSIS.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Database schema](docs/DATABASE_SCHEMA.md)
-- [Decisions](docs/DECISIONS.md)
-- [Cycles](docs/CYCLES.md)
-- [Conventions](docs/CONVENTIONS.md)
-- [Roadmap](docs/ROADMAP.md)
+The whole run costs about 0.0005 USD. Postgres listens on port 5432; set `PGBEE_PORT` to change it.
+
+## How it works
+
+```
+INSERT/UPDATE ──trigger──▶ bee.job (queue, same transaction)
+                               │  NOTIFY bee_jobs
+                               ▼
+                 worker: bee.claim_jobs ──▶ model (OpenRouter)
+                               │
+                               ▼
+      bee.complete_job ──▶ target column + bee.result (lineage) + bee.spend
+```
+
+- **The database owns the guarantees.** Queue, versions, lineage, overrides and budgets live in the `bee` schema, written in plain SQL and PL/pgSQL: no compiled code, nothing to install on the server besides SQL. The worker never touches your tables directly: it calls four queue functions and one maintenance function.
+- **The worker is replaceable.** The Python worker in this repository is the reference implementation. Any process that speaks the four-function contract (`claim_jobs`, `complete_job`, `fail_job`, `reclaim_stale`) is a valid worker.
+- **Nothing is lost.** A row that changes while its value is being computed is queued again, and so is a row whose prompt changes mid-flight. A worker that dies leaves its jobs to be reclaimed. Failures back off exponentially and end in `bee.dead_jobs`.
+
+## Backends and output types
+
+| Backend | What it does | Models (via OpenRouter) |
+|---|---|---|
+| `llm` | Structured output from a language model, with self-reported confidence | any chat model, e.g. `openai/gpt-6-luna` |
+| `decision` | Typed questions (choice, yes/no, rubric score) to a decision model, with class probabilities | `typesafe/jev-1.13` |
+| `embedding` | One vector per row, batched | e.g. `openai/text-embedding-3-small` |
+| `custom` | Your own worker claims these jobs (`claim_jobs(..., array['custom'])`) | anything |
+
+Output types: `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector` (needs pgvector). The `decision` backend covers `enum`, `boolean`, `integer` and `numeric`. Several `decision` columns on the same row share one model call.
+
+## Field test
+
+3000 real complaints from the public [CFPB Consumer Complaint Database](https://www.consumerfinance.gov/data-research/consumer-complaints/), nine products, four derived columns, the real worker process ([`demo/cfpb/`](demo/cfpb/)):
+
+| Column | Backend | Cost per 1000 rows | Median latency |
+|---|---|---|---|
+| product | `decision` (Jev) | 0.019 USD | 0.31 s |
+| lost money? | `decision`, same call | 0.019 USD | 0.31 s |
+| product | `llm` (gpt-6-luna, low effort) | 0.093 USD | 1.87 s |
+| embedding | `embedding` | 0.005 USD | 0.03 s |
+
+12,000 jobs, 0 failures, 0.41 USD in total. Both models agree with the product the consumer picked about 79% of the time. That label is noisy, so this measures agreement, not accuracy. When the models are confident (0.9 or more) the agreement is 86-88%; below 0.5 it drops to 32-35%. That is what the review queue is for.
+
+## Reference
+
+### Declaring and managing columns
+
+| Function | What it does |
+|---|---|
+| `bee.add_column(p_table, p_column, p_source_columns, p_output_type, p_backend => 'llm', p_prompt, p_model, p_output_schema, p_backend_config, p_config)` | Declares a derived column: adds the target column if missing, installs the triggers, starts the backfill. |
+| `bee.update_column(p_table, p_column, p_prompt, p_model, p_output_schema, p_backend_config)` | New version of the definition. Only rows computed with an older version are recomputed. |
+| `bee.configure(p_table, p_column, p_config)` | Changes operational settings (below) without creating a version. |
+| `bee.disable(p_table, p_column)` / `bee.enable(p_table, p_column)` | Pause and resume. `enable` recomputes the rows that changed meanwhile. |
+| `bee.drop_column(p_table, p_column, p_drop_target => false)` | Stops deriving the column. Keeps the lineage; drops the column only when asked. |
+| `bee.unpin(p_table, p_column, '{"id": 42}')` | Releases a human override and recomputes the row. Setting the column to NULL by hand does the same. |
+| `bee.retry_dead(p_table, p_column)` | Puts failed jobs back in the queue. |
+| `bee.spent(p_def_id, p_period)` | USD spent by a column in the current day, month, or in total. |
+
+Parameters are named with a `p_` prefix, so named notation reads `p_prompt => '...'`. `p_output_schema`: for `enum` an array of values or an object `{"value": "description"}` (descriptions are required by `decision`); for `vector` `{"dimensions": N}`; for `decision` scores `{"levels": [...]}`. `p_backend_config` is passed to the provider: `{"reasoning": {"effort": "low"}}`, `temperature`, `max_tokens`, `dimensions`, `batch_size` for embeddings.
+
+### Settings (`p_config`, per column)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `budget_usd` | none | Spending cap. When reached, the column's jobs wait until the period renews or the cap is raised. |
+| `budget_period` | `month` | `day`, `month` or `total`. |
+| `confidence_threshold` | 0.7 | Below this, a value goes to `bee.needs_review`. |
+| `low_confidence_policy` | `write` | `write` the value anyway, or `hold` it back (column stays NULL, value kept in lineage). |
+| `override_policy` | `pin` | A human value is never overwritten; `until_source_change` recomputes when the source changes. |
+| `batch_size`, `concurrency` | 20, 4 | Jobs per claim and parallel model calls. |
+| `max_attempts`, `backoff_base_seconds` | 5, 30 | Retries with exponential backoff. |
+| `backfill_chunk` | 1000 | Rows enqueued per backfill step. Declaring a column on a large table never locks it for long. |
+| `lineage_retention_days` | none | Superseded lineage older than this is pruned by the worker. Current values are never pruned. |
+
+### Views
+
+| View | Shows |
+|---|---|
+| `bee.columns` | Each derived column with its version, queue counters and backfill progress. |
+| `bee.needs_review` | Current values below the confidence threshold. |
+| `bee.stale_rows` | Rows computed with an older version. |
+| `bee.dead_jobs` | Failed jobs with their last error. |
+| `bee.budgets` | Cap, spend in the period and in total, remaining, exhausted. |
+| `bee.cost_by_column` | Tokens, cost and latency per column and version. |
+
+### Worker
+
+```bash
+pgbee install              # apply the SQL files (idempotent)
+pgbee run                  # one lane per backend: fast models never wait for slow ones
+pgbee run --backends llm   # serve only some backends (scale them on separate machines)
+pgbee status               # columns, queues, spend
+pgbee extension-files DIR  # files for CREATE EXTENSION pgbee
+```
+
+Environment: `DATABASE_URL`, `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and optionally `PGBEE_WORKER_ID`, `PGBEE_POLL_INTERVAL_SECONDS`, `PGBEE_CLAIM_TIMEOUT_SECONDS`, `PGBEE_MAINTENANCE_INTERVAL_SECONDS`, `PGBEE_LOG_LEVEL`. Releases publish the worker as a Python package (`uvx pgbee`) and as Docker images on GHCR; from a clone, `make build` and `make worker-image` build them locally.
+
+## Installing on your database
+
+**Any Postgres 15+, managed ones included:** run `pgbee install` with a `DATABASE_URL` whose role can create schemas and roles (`CREATEROLE`). It creates the `bee` schema and the `bee_worker` role. Without `CREATEROLE`, a superuser creates `bee_worker` once (`CREATE ROLE bee_worker NOLOGIN`) and the install goes on. pgvector is needed only for `vector` columns.
+
+**Self-hosted, as a real extension:** `pgbee extension-files ./ext`, copy the files into `$(pg_config --sharedir)/extension/`, then `CREATE EXTENSION pgbee`. Upgrades with `ALTER EXTENSION pgbee UPDATE`, and `pg_dump` keeps the definitions, lineage and spend. The two ways are generated from the same SQL files and are mutually exclusive on a database.
+
+**Give the worker its own login:** `CREATE ROLE pgbee_worker LOGIN PASSWORD '...' IN ROLE bee_worker`. That role can only call the queue functions and read the views. It has no access to your tables, because the contract functions run as the extension owner.
+
+**Bulk loads:** the triggers enqueue row by row. For a load of millions of rows, `bee.disable` the column, load, then `bee.enable`: the backfill enqueues the rows in chunks.
+
+## Limits and security
+
+- **Your data goes to model providers.** Source column values are sent through OpenRouter to the model you choose. Do not derive columns from data you may not share with them.
+- **Prompt injection.** Row text is model input. A row can contain instructions that bias its own value. Values are validated against the declared type (an enum stays an enum), but not against intent. Jev's documentation lists this as a known weakness.
+- **Confidence is a signal, not a guarantee.** It separates doubtful rows well in our tests, but it is not calibrated for LLMs.
+- **Budgets are checked when jobs are claimed**, so a cap can be exceeded by one batch in flight. Calls that were paid for but returned an invalid answer are not counted.
+- **One provider in the reference worker:** OpenRouter, which gives access to most models with one key. `decision` uses OpenRouter's decisions API, still marked alpha. Another provider means a provider class in the worker or your own worker: the SQL contract does not depend on OpenRouter.
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
+## Development
+
+```bash
+make install      # worker dependencies (uv)
+make db-up        # Postgres for demo and tests on port 4460
+make check        # format, lint, typecheck, tests
+make test-llm     # also the tests that call OpenRouter (costs a fraction of a cent)
+make test-extension
+make demo         # the Italian support-ticket demo, end to end
+```
+
+Design notes: [architecture](docs/ARCHITECTURE.md) (English). The working notes are in Italian: [analysis and competition](docs/ANALYSIS.md), [decisions](docs/DECISIONS.md), [database schema](docs/DATABASE_SCHEMA.md), [cycles](docs/CYCLES.md), [roadmap](docs/ROADMAP.md), [conventions](docs/CONVENTIONS.md).
+
+## License
+
+[Apache-2.0](LICENSE). Made by [Simone Salerno](https://github.com/essedev).
