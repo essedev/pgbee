@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from typing import Any
 
 import psycopg
@@ -180,6 +182,35 @@ def test_row_changed_during_compute_is_requeued(
     assert job2["source"] == {"body": "Cambiato mentre il worker lavora"}
     assert complete(conn, job2, "medium") == "written"
     assert urgency_of(conn, 1) == "medium"
+
+
+def test_row_update_while_the_worker_completes_does_not_deadlock(
+    conn: psycopg.Connection[DictRow], conn2: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    """The application locks the row, then its trigger the job; complete_job must take the
+    same order. Before 0014 it locked the job first and one of the two was killed as a deadlock
+    (found by bench/failure)."""
+    add_urgency(conn)
+    conn.execute("DELETE FROM bee.job WHERE row_pk <> '{\"id\": 1}'::jsonb")
+    job = claim(conn)[0]
+    result: dict[str, Any] = {}
+
+    def worker() -> None:
+        try:
+            result["outcome"] = complete(conn2, job, "high")
+        except psycopg.Error as exc:
+            result["error"] = exc
+
+    with conn.transaction():
+        conn.execute("UPDATE ticket SET customer = 'Acme S.p.A.' WHERE id = 1")
+        thread = threading.Thread(target=worker)
+        thread.start()
+        time.sleep(0.5)  # the worker is now waiting for the row
+        conn.execute("UPDATE ticket SET body = 'Changed while the worker completes' WHERE id = 1")
+    thread.join(timeout=10)
+    assert result == {"outcome": "stale_requeued"}
+    assert urgency_of(conn, 1) is None
+    assert jobs(conn, "pending")[0]["id"] == job["job_id"]
 
 
 def test_fail_job_backs_off_then_dies(conn: psycopg.Connection[DictRow], ticket: str) -> None:
