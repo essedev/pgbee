@@ -34,9 +34,9 @@ Status: attiva. Il worker usa psycopg 3 async e SQL esplicito verso le funzioni 
 
 Status: attiva. Il prompt è l'istruzione; il worker aggiunge le sorgenti in un blocco fisso `nome_colonna: valore`. Alternativa scartata: placeholder `{{colonna}}` nel prompt. Motivo: versioni più semplici, hash delle sorgenti indipendente dal prompt, nessun motore di template da mantenere. Si riapre se un caso reale lo richiede.
 
-## #9 Documentazione interna in italiano, README in inglese
+## #9 Doc per chi usa il progetto in inglese, note di lavoro in italiano
 
-Status: attiva. `docs/` e `CLAUDE.md` in italiano, `README.md`, codice, SQL e commenti in inglese. Alternativa scartata: tutto in inglese da subito. Motivo: oggi l'unico lettore della doc interna è italiano; il README è la faccia pubblica di un tool pensato per essere open source. Si traduce quando il progetto apre.
+Status: attiva, aggiornata alla pubblicazione (ciclo 8). In inglese ciò che legge chi usa il progetto: `README.md`, `SECURITY.md`, `docs/ARCHITECTURE.md`, `examples/`, oltre a codice, SQL e commenti. In italiano le note di lavoro: `ANALYSIS`, `DECISIONS`, `DATABASE_SCHEMA`, `CYCLES`, `ROADMAP`, `CONVENTIONS`, `CLAUDE.md`; il README le dichiara in italiano. Alternative scartate: tutto in inglese da subito (all'inizio l'unico lettore era italiano), tradurre tutta `docs/` all'apertura come prevedeva la prima versione di questa voce (costo di traduzione e di manutenzione doppia su file che servono a chi ci lavora, non a chi adotta). L'elenco dei file sta in `CONVENTIONS.md`.
 
 ## #10 Perimetro: colonne derivate con backend espliciti, mai un job system
 

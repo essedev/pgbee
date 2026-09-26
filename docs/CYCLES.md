@@ -109,3 +109,20 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 **Decisioni.** Nessuna nuova: lo 0011 ripristina l'invariante di #4 (ogni risultato riferisce la versione che l'ha prodotto). La review ha proposto anche un piano di validazione in quattro settimane, registrato in `ROADMAP.md` come proposta in attesa di verdetto.
 
 **Prossimo passo.** Decidere sul piano di validazione; se passa, sostituisce la valutazione del criterio di uscita in `ANALYSIS.md` fatta solo sui dati propri.
+
+## Ciclo 8 (26 settembre 2026): preparazione alla pubblicazione
+
+**Obiettivo.** Rendere il repository pubblicabile come progetto personale: licenza, CI, un avvio rapido per chi arriva da fuori, doc per l'utente in inglese.
+
+**Fatto.**
+
+- Licenza Apache-2.0 (`LICENSE`, copiata in `worker/` per il wheel) e metadati del pacchetto: README breve per PyPI, URL del progetto, versione `0.1.0`.
+- CI (`.github/workflows/ci.yml`): ruff, mypy, suite di test su pgvector per Postgres 15, 16, 17 e 18 (tutti verdi in locale), `make test-extension`. Rilascio (`release.yml`) su tag `v*` che deve coincidere con la versione del pacchetto: wheel e sdist su PyPI con trusted publishing, immagine del worker e immagini Postgres con l'estensione (pg17, pg18) su GHCR, file dell'estensione allegati alla release GitHub. L'immagine Postgres prende `PG_MAJOR`.
+- Avvio rapido in un comando: `compose.yml` alza Postgres con pgvector, esegue `pgbee install` una volta e avvia il worker; `examples/quickstart.sql` dichiara una colonna `decision`, una `llm` e una `embedding` su otto ticket (riempite in 6 s, 0.0005 USD). La chiave è opzionale per compose, così `psql` funziona anche senza, e il worker esce con un messaggio chiaro. Verificato da un clone pulito. Log senza colori fuori da un terminale.
+- README riscritto per chi non conosce il progetto: cosa fa nelle prime righe, avvio rapido, esito della prova sul campo, riferimento SQL completo (funzioni con i nomi dei parametri `p_`, impostazioni, viste, CLI del worker), modi di installare, caricamenti massivi, limiti e sicurezza. `SECURITY.md` con il canale di segnalazione privata e il modello di sicurezza.
+- `sql/0012`: il commento di `bee.configure` elenca tutte le impostazioni, quello che mostra `\df+`.
+- `ARCHITECTURE.md` tradotta in inglese e allineata a prova sul campo, avvio rapido e Postgres 15-18; `CONVENTIONS.md` fissa quali file sono in inglese (per chi usa il progetto) e quali restano note di lavoro in italiano.
+
+**Decisioni.** #21 (Apache-2.0, progetto personale su `essedev`); #9 aggiornata con la divisione delle lingue.
+
+**Prossimo passo.** I passi di pubblicazione che restano all'autore, in `ROADMAP.md`: repo GitHub, push, publisher PyPI, segnalazioni private, tag `v0.1.0`, prova su un Postgres gestito.
