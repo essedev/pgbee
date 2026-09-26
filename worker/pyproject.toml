@@ -6,6 +6,9 @@ authors = [
     { name = "Simone Salerno", email = "doppiaesse@proton.me" }
 ]
 requires-python = ">=3.13"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+readme = "README.md"
 dependencies = [
     "httpx2>=2.13.1",
     "jsonschema>=4.26.0",
@@ -16,6 +19,11 @@ dependencies = [
     "structlog>=26.1.0",
     "typer>=0.27.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/essedev/pgbee"
+Repository = "https://github.com/essedev/pgbee"
+Issues = "https://github.com/essedev/pgbee/issues"
 
 [project.scripts]
 pgbee = "pgbee.cli:app"
