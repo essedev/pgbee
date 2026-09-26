@@ -10,7 +10,7 @@ Status: experiment. See `docs/ANALYSIS.md` for the reasoning and the exit criter
 
 - Extension: plain SQL and PL/pgSQL in `sql/`, installs on any PostgreSQL 15+ including managed ones, or as a real extension (`CREATE EXTENSION pgbee`) on self-hosted servers.
 - Worker: Python 3.13 package `pgbee` in `worker/`, psycopg 3, OpenRouter via the OpenAI SDK.
-- Demo: Docker Compose Postgres plus a support-ticket dataset in `demo/`.
+- Demo: Docker Compose Postgres plus a support-ticket dataset in `demo/`, and a field test on 3000 real CFPB consumer complaints in `demo/cfpb/`.
 
 ## Quick start
 

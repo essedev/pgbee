@@ -80,3 +80,18 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 **Decisioni.** #18 (due modi di installare generati dagli stessi file); #1 aggiornata di conseguenza, #13 aggiornata sul punto in cui si conta la spesa.
 
 **Prossimo passo.** Invariato: valutare il criterio di uscita in `ANALYSIS.md` e decidere se fare M4 (demo UI).
+
+## Ciclo 6 (26 settembre 2026): nome `pgbee`, prova sul campo su testi veri, un ciclo per backend
+
+**Obiettivo.** Dare al progetto un nome che conviva con pgai e misurare il meccanismo su un volume e su testi reali, non sui 21 ticket della demo.
+
+**Fatto.**
+
+- Rinomina: progetto, pacchetto, CLI, estensione e immagini diventano `pgbee`; nel database lo schema è `bee`, il ruolo `bee_worker`, il canale `bee_jobs`, la variabile `bee.writer`, i trigger `bee_enqueue_<colonna>` e `bee_override_<colonna>`. I file SQL già committati sono stati riscritti una volta sola, perché `ALTER SCHEMA ... RENAME` non aggiorna i corpi delle funzioni.
+- Prova sul campo su 3000 reclami CFPB (`demo/cfpb/`): `prepare.py` estrae un campione stratificato su nove prodotti dalla copia Hugging Face del database pubblico, `field_test.py` lo carica in un database dedicato (`aidb_cfpb`), dichiara quattro colonne (prodotto con Jev e con gpt-6-luna, un flag Jev, embedding) e fa girare il processo vero `pgbee run`. Esito: 12.000 job, zero falliti, 0.41 USD, 17,5 minuti; Jev e LLM al 79 per cento di accordo con un'etichetta rumorosa, Jev a un quinto del costo per domanda; la confidenza di entrambi separa i casi dubbi, il che corregge la lettura fatta sui 21 ticket. Tabelle in `ANALYSIS.md`.
+- Un ciclo e una connessione per backend: la prova ha mostrato Jev ed embedding finire insieme all'LLM (749 e 751 s contro 967 s) perché un batch misto aspetta la chiamata più lenta. `WorkerPool` fa girare un `Worker` per backend, solo il primo fa manutenzione e reclaim; `pgbee run --backends` sceglie quali servire. Su 600 righe Jev finisce in 28 s, l'embedding in 21, l'LLM in 144. Nessuna modifica al database.
+- Test: tre sul pool (backend veloce che non aspetta il lento, pool limitato ai suoi backend, validazione di `--backends`).
+
+**Decisioni.** #19 (nome `pgbee`, schema `bee`, unica eccezione alla regola sui file SQL già committati), #20 (un ciclo e una connessione per backend).
+
+**Prossimo passo.** Valutare il criterio di uscita in `ANALYSIS.md`, ora con i dati della prova sul campo, e decidere se fare M4 (demo UI).

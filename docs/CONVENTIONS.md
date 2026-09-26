@@ -14,7 +14,7 @@ Regole specifiche di questo progetto. Gli standard trasversali sono nel CLAUDE.m
 - SQL dinamico solo con `format()` e `%I` per gli identificatori, `%L` mai per valori che arrivano dall'esterno: si usano `EXECUTE ... USING`.
 - Le funzioni del contratto worker sono stabili: cambiarne la firma è una decisione in `DECISIONS.md` e una versione nuova della funzione, non una modifica in place.
 - Ogni funzione pubblica ha `COMMENT ON FUNCTION` con una riga di descrizione: è la documentazione che `\df+` mostra.
-- Trigger per tabella utente con prefisso `ai_` e nome della colonna, così `\d tabella` dice chi li ha messi.
+- Trigger per tabella utente con prefisso `bee_` e nome della colonna (`bee_enqueue_<colonna>`, `bee_override_<colonna>`), così `\d tabella` dice chi li ha messi.
 
 ## Python (`worker/`)
 
