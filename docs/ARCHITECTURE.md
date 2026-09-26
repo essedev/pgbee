@@ -74,7 +74,7 @@ Le decisioni con alternativa scartata stanno numerate in `DECISIONS.md`. Le prin
 
 ## Sicurezza e permessi
 
-Le funzioni sono `SECURITY INVOKER`: il ruolo del worker deve avere `SELECT` sulle colonne sorgente e `UPDATE` sulle colonne target delle tabelle coinvolte, oltre ai privilegi sullo schema `ai`. `ai.add_column` documenta i grant necessari. Il prompt è dato, non codice: viaggia nel catalogo, non viene mai interpolato in SQL.
+L'install crea il ruolo `ai_worker` (serve `CREATEROLE`, altrimenti lo crea una volta un superuser). Un worker si collega con un login membro di quel ruolo (`CREATE ROLE aicol LOGIN PASSWORD '...' IN ROLE ai_worker`) e ha solo `USAGE` sullo schema `ai`, `EXECUTE` sulle quattro funzioni del contratto e `SELECT` sulle viste: nessun accesso alle tabelle dell'utente né alle tabelle di `ai`. Le funzioni del contratto e i trigger di accodamento e override sono `SECURITY DEFINER` con `search_path = pg_catalog, pg_temp`, quindi girano come il proprietario dell'estensione; per lo stesso motivo un ruolo applicativo che ha solo `INSERT` e `UPDATE` sulla tabella accoda e registra override senza grant sullo schema `ai`. `EXECUTE` sul contratto è revocato a `PUBLIC`: una funzione definer aperta a tutti permetterebbe a chiunque di leggere le sorgenti con `claim_jobs` o di scrivere le colonne target con `complete_job`. Le funzioni di gestione (`add_column` e le altre) restano `SECURITY INVOKER` e richiedono il proprietario della tabella. Il prompt è dato, non codice: viaggia nel catalogo, non viene mai interpolato in SQL (decisione #16).
 
 ## Tradeoff accettati
 

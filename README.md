@@ -21,7 +21,7 @@ make db-install     # apply sql/ to the database
 make demo           # seed tickets, declare derived columns, run the worker
 ```
 
-Configuration is read from `worker/.env` (see `worker/.env.example`).
+Configuration is read from `worker/.env` (see `worker/.env.example`). In production the worker should log in with a role in `ai_worker`, which only gets the queue functions: `CREATE ROLE aicol LOGIN PASSWORD '...' IN ROLE ai_worker`.
 
 ## Documentation
 

@@ -134,6 +134,10 @@ Contratto worker: `ai.claim_jobs(worker_id, batch_size, backends[])`, `ai.comple
 
 Trigger per tabella utente: `ai_enqueue_<column>` (AFTER INSERT OR UPDATE OF sorgenti) e `ai_override_<column>` (AFTER UPDATE OF target). Il secondo ignora le scritture fatte dentro `complete_job` (GUC `ai.writer = 'worker'`); un UPDATE a NULL fatto a mano toglie il pin e riaccoda la riga.
 
+## Ruoli e privilegi
+
+`ai_worker` (NOLOGIN, creato dall'install): `USAGE` sullo schema `ai`, `EXECUTE` su `claim_jobs`, `complete_job`, `fail_job`, `reclaim_stale` (revocato a `PUBLIC`), `SELECT` su `ai.columns`, `ai.budgets`, `ai.dead_jobs`, `ai.needs_review`, `ai.stale_rows`, `ai.cost_by_column`. Le quattro funzioni del contratto e le funzioni trigger `ai.enqueue_trigger` e `ai.override_trigger` sono `SECURITY DEFINER` con `search_path = pg_catalog, pg_temp`.
+
 ## Relazioni
 
 `column_def` 1-N `column_version`; `column_def` 1-N `job`; `column_def` 1-N `result`; `column_version` 1-N `result`; `column_def` 1-N `spend`. Le tabelle dell'utente non hanno FK verso lo schema `ai`: il legame è per `row_pk`, e la cancellazione di una riga utente lascia il lineage orfano di proposito (storia).
