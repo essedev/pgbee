@@ -2,17 +2,26 @@
 
 ## Stato corrente
 
-Estensione, worker e demo girano end to end contro OpenRouter, con quattro backend (`llm`, `decision`, `embedding`, `custom`), tetto di spesa per colonna, backfill a chunk che regge tabelle da milioni di righe, worker con privilegi minimi, retention del lineage, otto modelli confrontati, packaging (wheel con i file SQL, `CREATE EXTENSION pgbee` per i server self-hosted, immagine Docker del worker) e un ciclo di lavoro per backend. Provati sul campo su 3000 reclami reali CFPB: 12.000 job senza errori per 0.41 USD. Una review esterna ha trovato un bug di lineage sui cambi di versione, corretto nello 0011. Il repository è pronto per uscire: licenza Apache-2.0, CI su Postgres 15-18, rilascio automatico su tag, avvio rapido con `docker compose up`, README e `SECURITY.md` per chi arriva da fuori (cicli 1-8 in `CYCLES.md`, risultati in `ANALYSIS.md`).
+Estensione, worker e demo girano end to end contro OpenRouter, con quattro backend (`llm`, `decision`, `embedding`, `custom`), tetto di spesa per colonna, backfill a chunk che regge tabelle da milioni di righe, worker con privilegi minimi, retention del lineage, packaging (wheel con i file SQL, `CREATE EXTENSION pgbee`, immagini Docker) e un ciclo di lavoro per backend. Provati sul campo su 3000 reclami reali CFPB: 12.000 job senza errori per 0.41 USD. Una review esterna ha trovato un bug di lineage sui cambi di versione, corretto nello 0011. Licenza Apache-2.0, CI verde su Postgres 15-18, rilascio automatico su tag, avvio rapido con `docker compose up`, README e `SECURITY.md` per chi arriva da fuori, logo e mascotte in `assets/brand/`. Il repository `essedev/pgbee` esiste su GitHub, privato, con `main` pushato (cicli 1-8 in `CYCLES.md`, risultati in `ANALYSIS.md`).
 
-## Milestone corrente: pubblicazione 0.1.0
+## Milestone corrente: pronto per il lancio
 
-Il codice è pronto; restano i passi che richiedono gli account dell'autore, in quest'ordine.
+In quest'ordine; il primo punto può cambiare come presentiamo il progetto.
 
-- [ ] Repository pubblico `essedev/pgbee` su GitHub (per `DECISIONS.md` #21), remote `origin` (oggi il repository locale non ne ha) e push di `main`; controllare che la CI passi su tutte e quattro le versioni di Postgres.
-- [ ] Trusted publisher su PyPI per il progetto `pgbee`: repository `essedev/pgbee`, workflow `release.yml`, environment `pypi`.
-- [ ] Segnalazioni private attive nelle impostazioni di sicurezza del repository: `SECURITY.md` rimanda lì.
-- [ ] Tag `v0.1.0` (deve coincidere con la versione in `worker/pyproject.toml`, il workflow lo verifica): pubblica wheel su PyPI, immagini su GHCR e file dell'estensione nella release. Dopo il primo rilascio verificare che i package GHCR `pgbee-worker` e `pgbee-postgres` siano pubblici e collegati al repository: i Dockerfile non hanno la label `org.opencontainers.image.source`.
-- [ ] Prova su un Postgres gestito (Supabase, Neon o RDS) con `pgbee install` dal pacchetto pubblicato: il README dichiara che non è ancora stato fatto.
+- [ ] Prova sotto guasti, pgbee contro l'approccio tipico nel codice applicativo (salva la riga, poi manda in coda): stesse righe, modello finto, crash dei processi, prompt cambiato a metà, scritture da script esterni. Si contano righe rimaste senza valore, valori vecchi creduti nuovi, correzioni umane sovrascritte. È la dimostrazione del perché lo stato sta nel database. Costo zero.
+- [ ] Provider generico compatibile OpenAI (OpenAI, Azure, modelli locali con Ollama o vLLM): solo parametri standard, costo calcolato da un prezzo per milione di token dichiarato nella colonna, budget anche in token per i modelli locali. `decision` resta su OpenRouter, perché Jev esiste solo lì.
+- [ ] Modalità cron nel README: `pgbee run --once` da uno scheduler, per chi non può tenere un worker acceso (serverless).
+- [ ] Script dei benchmark nel repository (`bench/`): backfill su 1M righe, caricamenti massivi, un ciclo per backend. Oggi stanno fuori dal repo e nessuno può rifare le misure.
+
+## Milestone successiva: pubblicazione 0.1.0
+
+- [ ] Trusted publisher su PyPI per il progetto `pgbee`: repository `essedev/pgbee`, workflow `release.yml`, environment `pypi` (Simone, richiede il suo account).
+- [ ] Anteprima social del repository: `assets/brand/png/pgbee-social.png` in Settings, Social preview (Simone).
+- [ ] Prova su un Postgres gestito (Neon, Supabase o RDS) con `pgbee install`: serve la stringa di connessione di un database di prova. Il README dichiara che non è ancora stato fatto.
+- [ ] Repository pubblico e segnalazioni private di vulnerabilità attive (`SECURITY.md` rimanda lì), su comando di Simone.
+- [ ] Tag `v0.1.0` (deve coincidere con la versione in `worker/pyproject.toml`, il workflow lo verifica): pubblica wheel su PyPI, immagini su GHCR e file dell'estensione nella release. Dopo il primo rilascio verificare che i package GHCR siano pubblici e collegati al repository.
+- [ ] Video di 30 secondi delle celle che si riempiono, per README e post.
+- [ ] Lancio: profilo X e avatar (`assets/brand/png/pgbee-avatar-512.png`); bozze dei post in inglese scritte dall'agent e approvate una per una da Simone; lo stesso materiale su LinkedIn, Hacker News (Show HN) e r/PostgreSQL. Apify per trovare chi discute già il problema (candidati alle interviste), Zernio solo per programmare post già approvati, niente risposte automatiche.
 
 ## Dopo la pubblicazione: piano di validazione (proposto, in attesa di verdetto)
 
@@ -20,7 +29,7 @@ Piano in quattro settimane emerso dalla review esterna, al posto della valutazio
 
 - [ ] Interviste a 8 responsabili tecnici, di cui 4 esterni.
 - [ ] Due installazioni reali.
-- [ ] Prove sotto guasto.
+- [ ] Prove sotto guasto su un'installazione vera.
 - [ ] Un pilota a pagamento.
 
 Criteri di esito: **prodotto** se due gruppi esterni lo usano da soli e uno paga; **strumento interno** se risparmia lavoro solo nei progetti di consulenza dell'autore; altrimenti **chiusura**, e resta il modello concettuale.
@@ -31,4 +40,4 @@ Criteri di esito: **prodotto** se due gruppi esterni lo usano da soli e uno paga
 
 ## Dopo l'esperimento (solo se passa)
 
-Few-shot dagli override umani, chunking con destinazione a tabella (per `DECISIONS.md` #11), pubblicazione su PGXN o `pg_tle` (per `DECISIONS.md` #18), worker in Rust (per `DECISIONS.md` #3: solo se i primi utenti chiedono un eseguibile senza Python; non renderebbe il worker più veloce, perché aspetta i modelli), estensione SQLite con lo stesso modello concettuale.
+Worker ospitato (ci si collega il proprio database e il worker gira come servizio: risolve chi non può tenere un processo acceso ed è l'offerta commerciale più naturale), few-shot dagli override umani, chunking con destinazione a tabella (per `DECISIONS.md` #11), pubblicazione su PGXN o `pg_tle` (per `DECISIONS.md` #18), worker in Rust (per `DECISIONS.md` #3: solo se i primi utenti chiedono un eseguibile senza Python; non renderebbe il worker più veloce, perché aspetta i modelli), estensione SQLite con lo stesso modello concettuale.
