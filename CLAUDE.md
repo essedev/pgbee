@@ -20,6 +20,7 @@ Colonne derivate da modello per PostgreSQL: estensione in SQL puro (`sql/`) che 
 - `make demo`: seed della demo, dichiarazione delle colonne, worker.
 - `make status`: colonne derivate e contatori della coda (`pgbee status`).
 - `make test`, `make test-llm` (include i test marcati `llm`, costa), `make lint`, `make format`, `make typecheck`, `make check`, `make build`, `make worker-image`, `make extension-image`, `make test-extension` (serve Docker, marker `extension`), `make clean`; `make help` li elenca tutti.
+- `make bench-failure`, `make bench-scale`, `make bench-lanes`: benchmark senza costi (`bench/README.md`). I tempi dipendono dal carico della macchina: con altri container attivi non sono confrontabili.
 - Un solo run di test alla volta: il conftest ricrea il database.
 
 ## Convenzioni

@@ -15,3 +15,4 @@ paths:
 - **Le funzioni del contratto worker sono stabili**: firma nuova significa funzione nuova e voce in `docs/DECISIONS.md`.
 - **`COMMENT ON FUNCTION` su ogni funzione pubblica**, una riga: è la doc che `\df+` mostra.
 - **`docs/DATABASE_SCHEMA.md` cambia nello stesso commit** del file SQL che tocca tabelle, viste o funzioni pubbliche.
+- **Ordine dei lock: prima la riga dell'utente, poi il job.** Un UPDATE applicativo blocca la riga e il trigger poi il job; una funzione che tocca entrambi deve seguire lo stesso ordine, altrimenti va in deadlock con le scritture dell'utente (0014). `bench/failure/` lo mette alla prova: rilancialo quando cambi il contratto.
