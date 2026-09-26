@@ -289,10 +289,13 @@ async def run(args: argparse.Namespace) -> None:
     show(conn, "SELECT id, urgency, category, summary FROM ticket WHERE id = 21")
 
     say("5. Un operatore corregge a mano: il valore resta, il modello non lo tocca più")
-    conn.execute("UPDATE ticket SET urgency = 'low' WHERE id = 10")
+    print(
+        "  ticket 12 (disdetta): per il modello è low, per il commerciale è un churn da trattare subito"
+    )
+    conn.execute("UPDATE ticket SET urgency = 'high' WHERE id = 12")
     show(
         conn,
-        "SELECT row_pk ->> 'id' AS id, source, value FROM ai.result WHERE is_current AND row_pk = '{\"id\": 10}' AND column_def_id = (SELECT id FROM ai.columns WHERE column_name = 'urgency')",
+        "SELECT row_pk ->> 'id' AS id, source, value FROM ai.result WHERE is_current AND row_pk = '{\"id\": 12}' AND column_def_id = (SELECT id FROM ai.columns WHERE column_name = 'urgency')",
     )
 
     say("6. Cambia il prompt di urgency: versione 2, si ricalcolano solo le righe della versione 1")
