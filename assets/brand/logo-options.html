@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pgbee logo options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;800&family=Space+Mono:wght@400;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --honey: #FFC21A; --honey-light: #FFD95A; --ink: #1D1A16; --wing: #D6ECFF;
+    --cream: #FFF8E7; --paper: #FAF7F0; --night: #17140F; --muted: #8A7F6A;
+    --line: #1D1A16;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+         font: 15px/1.5 "IBM Plex Mono", ui-monospace, monospace; padding: 32px 16px 64px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.lead { margin: 0 0 32px; color: var(--muted); }
+  section { margin-bottom: 56px; }
+  .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px; }
+  .letter { font: 800 40px/1 "JetBrains Mono", monospace; }
+  .head h2 { font-size: 16px; margin: 0; }
+  .head span { color: var(--muted); font-size: 13px; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .card { border-radius: 16px; padding: 36px 28px; display: flex; flex-direction: column;
+          align-items: flex-start; justify-content: center; gap: 22px; min-height: 220px; }
+  .light { background: var(--cream); border: 1px solid #EFE6D0; }
+  .dark { background: var(--night); color: #FFF3D6; --line: #FFF3D6; }
+  .lockup { display: flex; align-items: center; gap: 14px; }
+  .lockup svg { width: 88px; height: 88px; flex: none; }
+  .word { font-size: 52px; line-height: 1; letter-spacing: -0.02em; }
+  .word .pg { color: var(--muted); }
+  .dark .word .pg { color: #A89F8C; }
+  .tag { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .dark .tag { color: #A89F8C; }
+  .sizes { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+  .sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .sizes figcaption { font-size: 11px; color: var(--muted); }
+  .note { font-size: 13px; color: var(--muted); max-width: 70ch; margin: 12px 0 0; }
+  .font-a { font-family: "JetBrains Mono", monospace; font-weight: 800; }
+  .font-b { font-family: "Space Mono", monospace; font-weight: 700; }
+  .font-c { font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- A1: the bee is a database cylinder, full face -->
+    <symbol id="bee-a1" viewBox="0 0 120 120">
+      <g style="stroke:var(--line)" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M51 38 C47 28 43 22 38 16" fill="none"/>
+        <path d="M69 38 C73 28 77 22 82 16" fill="none"/>
+        <circle cx="37" cy="14" r="4.5" style="fill:var(--line)"/>
+        <circle cx="83" cy="14" r="4.5" style="fill:var(--line)"/>
+        <ellipse cx="22" cy="54" rx="18" ry="11" transform="rotate(-28 22 54)" fill="#D6ECFF"/>
+        <ellipse cx="98" cy="54" rx="18" ry="11" transform="rotate(28 98 54)" fill="#D6ECFF"/>
+        <path d="M55 104 L60 115 L65 104 Z" style="fill:var(--line)"/>
+        <path d="M30 44 V96 A30 10 0 0 0 90 96 V44 Z" fill="#FFC21A"/>
+      </g>
+      <path d="M31.8 72 A30 10 0 0 0 88.2 72 V80 A30 10 0 0 1 31.8 80 Z" fill="#1D1A16"/>
+      <path d="M31.8 86 A30 10 0 0 0 88.2 86 V92 A30 10 0 0 1 31.8 92 Z" fill="#1D1A16"/>
+      <ellipse cx="60" cy="44" rx="30" ry="10" fill="#FFD95A" style="stroke:var(--line)" stroke-width="3.5"/>
+      <ellipse cx="41" cy="68" rx="4" ry="2.6" fill="#FF9E8A" opacity=".85"/>
+      <ellipse cx="79" cy="68" rx="4" ry="2.6" fill="#FF9E8A" opacity=".85"/>
+      <circle cx="49" cy="62" r="4.6" fill="#1D1A16"/>
+      <circle cx="71" cy="62" r="4.6" fill="#1D1A16"/>
+      <circle cx="50.6" cy="60.4" r="1.5" fill="#fff"/>
+      <circle cx="72.6" cy="60.4" r="1.5" fill="#fff"/>
+      <path d="M55 68 Q60 73 65 68" fill="none" stroke="#1D1A16" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+
+    <!-- A2: between A1 and A3: small eyes with a highlight, a short smile, no cheeks -->
+    <symbol id="bee-a2" viewBox="0 0 120 120">
+      <g style="stroke:var(--line)" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M51 38 C47 28 43 22 38 16" fill="none"/>
+        <path d="M69 38 C73 28 77 22 82 16" fill="none"/>
+        <circle cx="37" cy="14" r="4.5" style="fill:var(--line)"/>
+        <circle cx="83" cy="14" r="4.5" style="fill:var(--line)"/>
+        <ellipse cx="22" cy="54" rx="18" ry="11" transform="rotate(-28 22 54)" fill="#D6ECFF"/>
+        <ellipse cx="98" cy="54" rx="18" ry="11" transform="rotate(28 98 54)" fill="#D6ECFF"/>
+        <path d="M55 104 L60 115 L65 104 Z" style="fill:var(--line)"/>
+        <path d="M30 44 V96 A30 10 0 0 0 90 96 V44 Z" fill="#FFC21A"/>
+      </g>
+      <path d="M31.8 72 A30 10 0 0 0 88.2 72 V80 A30 10 0 0 1 31.8 80 Z" fill="#1D1A16"/>
+      <path d="M31.8 86 A30 10 0 0 0 88.2 86 V92 A30 10 0 0 1 31.8 92 Z" fill="#1D1A16"/>
+      <ellipse cx="60" cy="44" rx="30" ry="10" fill="#FFD95A" style="stroke:var(--line)" stroke-width="3.5"/>
+      <circle cx="50" cy="62" r="4.2" fill="#1D1A16"/>
+      <circle cx="70" cy="62" r="4.2" fill="#1D1A16"/>
+      <circle cx="51.3" cy="60.8" r="1.1" fill="#fff"/>
+      <circle cx="71.3" cy="60.8" r="1.1" fill="#fff"/>
+      <path d="M57 68.5 Q60 71 63 68.5" fill="none" stroke="#1D1A16" stroke-width="2.4" stroke-linecap="round"/>
+    </symbol>
+
+    <!-- A3: sober, dot eyes only -->
+    <symbol id="bee-a3" viewBox="0 0 120 120">
+      <g style="stroke:var(--line)" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M51 38 C47 28 43 22 38 16" fill="none"/>
+        <path d="M69 38 C73 28 77 22 82 16" fill="none"/>
+        <circle cx="37" cy="14" r="4.5" style="fill:var(--line)"/>
+        <circle cx="83" cy="14" r="4.5" style="fill:var(--line)"/>
+        <ellipse cx="22" cy="54" rx="18" ry="11" transform="rotate(-28 22 54)" fill="#D6ECFF"/>
+        <ellipse cx="98" cy="54" rx="18" ry="11" transform="rotate(28 98 54)" fill="#D6ECFF"/>
+        <path d="M55 104 L60 115 L65 104 Z" style="fill:var(--line)"/>
+        <path d="M30 44 V96 A30 10 0 0 0 90 96 V44 Z" fill="#FFC21A"/>
+      </g>
+      <path d="M31.8 72 A30 10 0 0 0 88.2 72 V80 A30 10 0 0 1 31.8 80 Z" fill="#1D1A16"/>
+      <path d="M31.8 86 A30 10 0 0 0 88.2 86 V92 A30 10 0 0 1 31.8 92 Z" fill="#1D1A16"/>
+      <ellipse cx="60" cy="44" rx="30" ry="10" fill="#FFD95A" style="stroke:var(--line)" stroke-width="3.5"/>
+      <circle cx="50" cy="62" r="4.2" fill="#1D1A16"/>
+      <circle cx="70" cy="62" r="4.2" fill="#1D1A16"/>
+    </symbol>
+
+    <!-- A4: geometric mark, no face, straight antennae, three stripes -->
+    <symbol id="bee-a4" viewBox="0 0 120 120">
+      <g style="stroke:var(--line)" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M49 38 L40 18" fill="none"/>
+        <path d="M71 38 L80 18" fill="none"/>
+        <circle cx="39" cy="15.5" r="4.5" style="fill:var(--line)"/>
+        <circle cx="81" cy="15.5" r="4.5" style="fill:var(--line)"/>
+        <path d="M30 52 C14 40 4 50 8 60 C12 68 24 66 30 60 Z" fill="#D6ECFF"/>
+        <path d="M90 52 C106 40 116 50 112 60 C108 68 96 66 90 60 Z" fill="#D6ECFF"/>
+        <path d="M55 104 L60 114 L65 104 Z" style="fill:var(--line)"/>
+        <path d="M30 44 V96 A30 10 0 0 0 90 96 V44 Z" fill="#FFC21A"/>
+      </g>
+      <path d="M31.8 60 A30 10 0 0 0 88.2 60 V68 A30 10 0 0 1 31.8 68 Z" fill="#1D1A16"/>
+      <path d="M31.8 74 A30 10 0 0 0 88.2 74 V82 A30 10 0 0 1 31.8 82 Z" fill="#1D1A16"/>
+      <path d="M31.8 88 A30 10 0 0 0 88.2 88 V94 A30 10 0 0 1 31.8 94 Z" fill="#1D1A16"/>
+      <ellipse cx="60" cy="44" rx="30" ry="10" fill="#FFD95A" style="stroke:var(--line)" stroke-width="4"/>
+    </symbol>
+  </defs>
+</svg>
+
+<h1>pgbee: la A in quattro gradi</h1>
+<p class="lead">Stessa idea (l'ape è un cilindro di database), quattro livelli di simpatia, dal più simpatico al più geometrico. Scegli per lettera. Spesso si tengono due livelli: uno sobrio come logo, quello con il volto come mascotte per i contenuti.</p>
+
+<section>
+  <div class="head"><span class="letter">A1</span><h2>Mascotte piena</h2><span>JetBrains Mono 800</span></div>
+  <div class="row">
+    <div class="card light">
+      <div class="lockup"><svg><use href="#bee-a1"/></svg>
+        <div><div class="word font-a"><span class="pg">pg</span>bee</div><div class="tag">AI-derived columns for PostgreSQL</div></div></div>
+    </div>
+    <div class="card dark">
+      <div class="lockup"><svg><use href="#bee-a1"/></svg>
+        <div><div class="word font-a"><span class="pg">pg</span>bee</div><div class="tag">AI-derived columns for PostgreSQL</div></div></div>
+    </div>
+    <div class="card light">
+      <div class="sizes">
+        <figure><svg width="96" height="96"><use href="#bee-a1"/></svg><figcaption>96</figcaption></figure>
+        <figure><svg width="48" height="48"><use href="#bee-a1"/></svg><figcaption>48</figcaption></figure>
+        <figure><svg width="32" height="32"><use href="#bee-a1"/></svg><figcaption>32</figcaption></figure>
+        <figure><svg width="16" height="16"><use href="#bee-a1"/></svg><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+  </div>
+  <p class="note">Com'era: occhi con riflesso, guance, sorriso. La più simpatica; adatta a sticker, avatar e post, meno al logo di un tool infrastrutturale.</p>
+</section>
+
+<section>
+  <div class="head"><span class="letter">A2</span><h2>Via di mezzo</h2><span>JetBrains Mono 800</span></div>
+  <div class="row">
+    <div class="card light">
+      <div class="lockup"><svg><use href="#bee-a2"/></svg>
+        <div><div class="word font-a"><span class="pg">pg</span>bee</div><div class="tag">AI-derived columns for PostgreSQL</div></div></div>
+    </div>
+    <div class="card dark">
+      <div class="lockup"><svg><use href="#bee-a2"/></svg>
+        <div><div class="word font-a"><span class="pg">pg</span>bee</div><div class="tag">AI-derived columns for PostgreSQL</div></div></div>
+    </div>
+    <div class="card light">
+      <div class="sizes">
+        <figure><svg width="96" height="96"><use href="#bee-a2"/></svg><figcaption>96</figcaption></figure>
+        <figure><svg width="48" height="48"><use href="#bee-a2"/></svg><figcaption>48</figcaption></figure>
+        <figure><svg width="32" height="32"><use href="#bee-a2"/></svg><figcaption>32</figcaption></figure>
+        <figure><svg width="16" height="16"><use href="#bee-a2"/></svg><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+  </div>
+  <p class="note">Tiene la vita di A1 (occhi con un piccolo riflesso, un sorriso appena accennato) ma toglie le guance, il dettaglio più da cartone. Simpatica senza sembrare un giocattolo.</p>
+</section>
+
+<section>
+  <div class="head"><span class="letter">A3</span><h2>Sobria</h2><span>JetBrains Mono 800</span></div>
+  <div class="row">
+    <div class="card light">
+      <div class="lockup"><svg><use href="#bee-a3"/></svg>
+        <div><div class="word font-a"><span class="pg">pg</span>bee</div><div class="tag">AI-derived columns for PostgreSQL</div></div></div>
+    </div>
+    <div class="card dark">
+      <div class="lockup"><svg><use href="#bee-a3"/></svg>
+        <div><div class="word font-a"><span class="pg">pg</span>bee</div><div class="tag">AI-derived columns for PostgreSQL</div></div></div>
+    </div>
+    <div class="card light">
+      <div class="sizes">
+        <figure><svg width="96" height="96"><use href="#bee-a3"/></svg><figcaption>96</figcaption></figure>
+        <figure><svg width="48" height="48"><use href="#bee-a3"/></svg><figcaption>48</figcaption></figure>
+        <figure><svg width="32" height="32"><use href="#bee-a3"/></svg><figcaption>32</figcaption></figure>
+        <figure><svg width="16" height="16"><use href="#bee-a3"/></svg><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+  </div>
+  <p class="note">Stessa sagoma, volto ridotto a due punti: niente guance né bocca. Resta un personaggio riconoscibile ma serio.</p>
+</section>
+
+<section>
+  <div class="head"><span class="letter">A4</span><h2>Geometrica</h2><span>JetBrains Mono 800</span></div>
+  <div class="row">
+    <div class="card light">
+      <div class="lockup"><svg><use href="#bee-a4"/></svg>
+        <div><div class="word font-a"><span class="pg">pg</span>bee</div><div class="tag">AI-derived columns for PostgreSQL</div></div></div>
+    </div>
+    <div class="card dark">
+      <div class="lockup"><svg><use href="#bee-a4"/></svg>
+        <div><div class="word font-a"><span class="pg">pg</span>bee</div><div class="tag">AI-derived columns for PostgreSQL</div></div></div>
+    </div>
+    <div class="card light">
+      <div class="sizes">
+        <figure><svg width="96" height="96"><use href="#bee-a4"/></svg><figcaption>96</figcaption></figure>
+        <figure><svg width="48" height="48"><use href="#bee-a4"/></svg><figcaption>48</figcaption></figure>
+        <figure><svg width="32" height="32"><use href="#bee-a4"/></svg><figcaption>32</figcaption></figure>
+        <figure><svg width="16" height="16"><use href="#bee-a4"/></svg><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+  </div>
+  <p class="note">Niente volto: cilindro a tre strisce, ali e antenne come forme pulite, contorno più spesso. È un marchio più che un personaggio, e tiene meglio a 16 e 32 pixel.</p>
+</section>
+
+</body>
+</html>

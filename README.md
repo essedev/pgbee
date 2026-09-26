@@ -1,4 +1,9 @@
-# pgbee
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/pgbee-logo-dark.svg">
+    <img alt="pgbee" src="assets/brand/pgbee-logo.svg" width="340">
+  </picture>
+</p>
 
 AI-derived columns for PostgreSQL. Like a worker bee filling cells: you declare how a column is derived from other columns, and pgbee keeps every row filled, versioned and accounted for.
 
