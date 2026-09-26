@@ -13,7 +13,7 @@ Piano di validazione in quattro settimane emerso dalla review esterna, al posto 
 - [ ] Prove sotto guasto.
 - [ ] Un pilota a pagamento.
 
-Criteri di esito: **prodotto** se due gruppi esterni lo usano da soli e uno paga; **strumento interno** se risparmia lavoro solo nei progetti Yellow Tech; altrimenti **chiusura**, e resta il modello concettuale.
+Criteri di esito: **prodotto** se due gruppi esterni lo usano da soli e uno paga; **strumento interno** se risparmia lavoro solo nei progetti di consulenza dell'autore; altrimenti **chiusura**, e resta il modello concettuale.
 
 ## Milestone aperte
 

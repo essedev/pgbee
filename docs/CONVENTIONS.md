@@ -5,6 +5,7 @@ Regole specifiche di questo progetto. Gli standard trasversali sono nel CLAUDE.m
 ## Generali
 
 - Line length 100. Identificatori, codice, SQL e commenti in inglese. Prosa della demo (ticket, prompt di esempio) in italiano.
+- Doc per chi usa il progetto in inglese: `README.md`, `SECURITY.md`, `docs/ARCHITECTURE.md`, `examples/`. Note di lavoro in italiano: `ANALYSIS`, `DECISIONS`, `DATABASE_SCHEMA`, `CYCLES`, `ROADMAP`, `CONVENTIONS`, `CLAUDE.md`. Una modifica all'architettura aggiorna `ARCHITECTURE.md` in inglese.
 - Nomi dei test in inglese.
 
 ## SQL (`sql/`)
