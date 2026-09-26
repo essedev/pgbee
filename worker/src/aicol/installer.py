@@ -6,8 +6,10 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import psycopg
+from psycopg.rows import tuple_row
 
 SQL_FILE_RE = re.compile(r"^(\d{4})_[a-z0-9_]+\.sql$")
 
@@ -42,17 +44,18 @@ def sql_files(directory: Path | None = None) -> list[SqlFile]:
     return files
 
 
-def applied_versions(conn: psycopg.Connection) -> set[int]:
+def applied_versions(conn: psycopg.Connection[Any]) -> set[int]:
     exists = conn.execute(
         "SELECT 1 FROM pg_tables WHERE schemaname = 'ai' AND tablename = 'schema_version'"
     ).fetchone()
     if not exists:
         return set()
-    rows = conn.execute("SELECT version FROM ai.schema_version").fetchall()
+    cur = conn.cursor(row_factory=tuple_row)
+    rows = cur.execute("SELECT version FROM ai.schema_version").fetchall()
     return {int(row[0]) for row in rows}
 
 
-def install(conn: psycopg.Connection, directory: Path | None = None) -> list[int]:
+def install(conn: psycopg.Connection[Any], directory: Path | None = None) -> list[int]:
     """Apply every SQL file not yet recorded, one transaction each. Returns applied versions."""
     applied = applied_versions(conn)
     done: list[int] = []

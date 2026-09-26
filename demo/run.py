@@ -18,6 +18,7 @@ from typing import Any
 
 import psycopg
 from psycopg.rows import DictRow, dict_row
+from psycopg.types.json import Jsonb
 
 from aicol.db import Contract
 from aicol.installer import install
@@ -81,7 +82,7 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
             "problema di privacy o denaro. medium: un malfunzionamento che non blocca le vendite. "
             "low: domande, richieste amministrative, complimenti.",
             LLM_MODEL,
-            psycopg.types.json.Jsonb(URGENCIES),
+            Jsonb(URGENCIES),
         ),
     )
     conn.execute(
@@ -93,7 +94,7 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
             "utenti, permessi, disdette), commerciale (piani, preventivi, funzionalità incluse), "
             "altro.",
             LLM_MODEL,
-            psycopg.types.json.Jsonb(CATEGORIES),
+            Jsonb(CATEGORIES),
         ),
     )
     conn.execute(
@@ -112,14 +113,14 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
             "Estrai dal ticket l'azione richiesta dal cliente, se parla di denaro, e i "
             "riferimenti citati (numeri di fattura, codici, domini, nomi).",
             LLM_MODEL,
-            psycopg.types.json.Jsonb(EXTRACTED_SCHEMA),
+            Jsonb(EXTRACTED_SCHEMA),
         ),
     )
     if with_embedding:
         conn.execute(
             "SELECT ai.add_column('ticket', 'embedding', array['body'], 'vector',"
             " p_backend => 'embedding', p_model => %s, p_output_schema => %s::jsonb)",
-            (EMBEDDING_MODEL, psycopg.types.json.Jsonb({"dimensions": EMBEDDING_DIMENSIONS})),
+            (EMBEDDING_MODEL, Jsonb({"dimensions": EMBEDDING_DIMENSIONS})),
         )
 
 
