@@ -53,7 +53,7 @@ Quindi: l'estensione possiede catalogo, coda, lineage e regole; un worker estern
 
 ## Confronto modelli per la classificazione (26 settembre 2026)
 
-Sette modelli scelti incrociando l'indice di intelligenza e il tempo al primo token di Artificial Analysis (snapshot pubblico giornaliero, la chiave API fornita risultava non valida) con prezzi e supporto dell'output strutturato su OpenRouter. Misurati con `demo/compare_models.py` sulle colonne `urgency` e `category` dei 21 ticket della demo, contro le etichette di `demo/gold.json`. Campione piccolo: una riga vale il 5 per cento, le differenze sotto il 10 per cento non sono significative. Costo per 42 chiamate.
+Otto modelli: sette LLM scelti incrociando l'indice di intelligenza e il tempo al primo token di Artificial Analysis (snapshot pubblico giornaliero, la chiave API fornita risultava non valida) con prezzi e supporto dell'output strutturato su OpenRouter, più Jev (TypeSafe) aggiunto dopo come modello di decisione. Misurati con `demo/compare_models.py` sulle colonne `urgency` e `category` dei 21 ticket della demo, contro le etichette di `demo/gold.json`. Campione piccolo: una riga vale il 5 per cento, le differenze sotto il 10 per cento non sono significative. Costo per 42 chiamate.
 
 | Modello | Reasoning | Accuratezza | USD | Latenza media |
 |---|---|---|---|---|
