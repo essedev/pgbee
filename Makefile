@@ -48,6 +48,9 @@ check: ## Full quality pass (format, lint, typecheck, test)
 	$(MAKE) typecheck
 	$(MAKE) test
 
+worker-image: ## Build the worker image aicol-worker:dev (configuration from the environment only)
+	docker build -t aicol-worker:dev worker
+
 extension-image: ## Build the Postgres image with CREATE EXTENSION aicol available (aicol-postgres:dev)
 	rm -rf worker/dist/extension
 	cd worker && uv run aicol extension-files dist/extension

@@ -31,7 +31,7 @@ aicol extension-files ./ext && cp ./ext/* "$(pg_config --sharedir)/extension/"
 psql -c 'CREATE EXTENSION aicol'
 ```
 
-`make extension-image` builds `aicol-postgres:dev`, pgvector's image with the extension files in place.
+`make worker-image` builds `aicol-worker:dev` (`docker run --env-file ... aicol-worker:dev` runs the queue; `.env` files never enter the image). `make extension-image` builds `aicol-postgres:dev`, pgvector's image with the extension files in place.
 
 Configuration is read from `worker/.env` (see `worker/.env.example`). In production the worker should log in with a role in `ai_worker`, which only gets the queue functions: `CREATE ROLE aicol LOGIN PASSWORD '...' IN ROLE ai_worker`.
 
