@@ -10,7 +10,7 @@ from psycopg.rows import DictRow, dict_row
 
 from aicol.jobs import Job
 
-WORKER_BACKENDS = ["llm", "embedding"]
+WORKER_BACKENDS = ["llm", "decision", "embedding"]
 
 
 class Contract:
@@ -43,10 +43,11 @@ class Contract:
         model: str,
         usage: dict[str, Any],
         latency_ms: int,
+        details: dict[str, Any] | None = None,
     ) -> str:
         cur = await self._conn.execute(
-            "SELECT ai.complete_job(%s::bigint, %s, %s::jsonb, %s::real, %s, %s::jsonb, %s)"
-            " AS outcome",
+            "SELECT ai.complete_job(%s::bigint, %s, %s::jsonb, %s::real, %s, %s::jsonb, %s,"
+            " %s::jsonb) AS outcome",
             (
                 job.job_id,
                 job.source_hash,
@@ -55,6 +56,7 @@ class Contract:
                 model,
                 json.dumps(usage),
                 latency_ms,
+                None if details is None else json.dumps(details),
             ),
         )
         row = await cur.fetchone()

@@ -30,6 +30,30 @@ from aicol.worker import Worker
 HERE = Path(__file__).resolve().parent
 COLUMNS = ("urgency", "category")
 
+# Decision model (TypeSafe Jev via OpenRouter): typed questions, calibrated probabilities. It needs
+# criteria with descriptions, so the two columns are declared again as urgency_jev and category_jev.
+DECISION_MODEL = "typesafe/jev-1.13"
+DECISION_CRITERIA: dict[str, tuple[str, dict[str, str]]] = {
+    "urgency": (
+        "Classifica l'urgenza del ticket di assistenza di un negozio online.",
+        {
+            "low": "Domande, richieste amministrative, complimenti, disdette, anche se il cliente scrive URGENTE",
+            "medium": "Un malfunzionamento che degrada il servizio ma il negozio vende ancora",
+            "high": "Il negozio non riesce a vendere, oppure c'è un rischio legale o di privacy",
+        },
+    ),
+    "category": (
+        "Assegna la categoria del ticket.",
+        {
+            "fatturazione": "Fatture, pagamenti, canoni, note di credito, solleciti",
+            "tecnico": "Errori, bug, integrazioni, DNS, prestazioni, funzioni che non funzionano",
+            "account": "Accessi, utenti, permessi, disdette, chiusura account",
+            "commerciale": "Piani, preventivi, cosa include un piano",
+            "altro": "Domande d'uso, complimenti, tutto il resto",
+        },
+    ),
+}
+
 # (OpenRouter id, backend_config). Reasoning kept off or low: row classification wants latency, not thinking.
 CANDIDATES: list[tuple[str, dict[str, Any]]] = [
     ("deepseek/deepseek-v4.1-flash", {"reasoning": {"enabled": False}}),
@@ -127,7 +151,58 @@ def score(
     }
 
 
-async def run(models: list[tuple[str, dict[str, Any]]]) -> None:
+def declare_decision_columns(conn: psycopg.Connection[DictRow]) -> dict[str, int]:
+    versions: dict[str, int] = {}
+    for column, (prompt, criteria) in DECISION_CRITERIA.items():
+        name = f"{column}_jev"
+        try:
+            conn.execute("SELECT ai.drop_column('ticket', %s, true)", (name,))
+        except psycopg.errors.UndefinedColumn:
+            pass
+        conn.execute(
+            "SELECT ai.add_column('ticket', %s, array['body'], 'enum', p_backend => 'decision',"
+            " p_prompt => %s, p_model => %s, p_output_schema => %s)",
+            (name, prompt, DECISION_MODEL, Jsonb(criteria)),
+        )
+        row = conn.execute(
+            "SELECT current_version_id AS v FROM ai.column_def WHERE table_name = 'ticket'"
+            " AND column_name = %s AND deleted_at IS NULL",
+            (name,),
+        ).fetchone()
+        assert row is not None
+        versions[column] = int(row["v"])
+    return versions
+
+
+async def run_decision(
+    conn: psycopg.Connection[DictRow], worker: Worker, gold: dict[str, dict[str, set[str]]]
+) -> list[dict[str, Any]]:
+    print(f"\n== {DECISION_MODEL} (backend decision)")
+    versions = declare_decision_columns(conn)
+    n = await drain(worker, conn)
+    print(f"  {n} job elaborati")
+    out: list[dict[str, Any]] = []
+    for column in COLUMNS:
+        s = score(conn, f"{column}_jev", versions[column], gold[column])
+        s["column"] = column
+        s["model"] = DECISION_MODEL
+        out.append(s)
+        print(
+            f"  {column:9} acc={s['accuracy']:.0%} answered={s['answered']}/{len(gold[column])} dead={s['dead']}"
+            f" cost={s['cost']:.5f} latency={s['latency_ms']}ms"
+        )
+        if s["misses"]:
+            print("           miss: " + ", ".join(s["misses"]))
+    calib = conn.execute(
+        "SELECT round(avg(confidence)::numeric, 2) AS avg_conf, round(min(confidence)::numeric, 2) AS min_conf"
+        " FROM ai.result WHERE column_version_id = ANY(%s) AND is_current",
+        (list(versions.values()),),
+    ).fetchone()
+    print(f"  confidenza media {calib['avg_conf']}, minima {calib['min_conf']}" if calib else "")
+    return out
+
+
+async def run(models: list[tuple[str, dict[str, Any]]], decision: bool) -> None:
     settings = load_settings()
     assert settings.openrouter_api_key is not None
     conn = psycopg.connect(settings.database_url, autocommit=True, row_factory=dict_row)
@@ -140,6 +215,8 @@ async def run(models: list[tuple[str, dict[str, Any]]]) -> None:
     worker = Worker(contract, provider, worker_id="compare", batch_size=50)
 
     results: list[dict[str, Any]] = []
+    if decision:
+        results.extend(await run_decision(conn, worker, gold))
     for model, cfg in models:
         print(f"\n== {model} {cfg or ''}")
         versions = {c: new_version(conn, c, model, cfg) for c in COLUMNS}
@@ -181,18 +258,23 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--yes", action="store_true")
     parser.add_argument("--models", help="comma separated OpenRouter ids, subset of the candidates")
+    parser.add_argument("--decision", action="store_true", help="Also run the decision model (Jev)")
+    parser.add_argument("--only-decision", action="store_true", help="Run only the decision model")
     args = parser.parse_args()
     models = CANDIDATES
     if args.models:
         wanted = set(args.models.split(","))
         models = [m for m in CANDIDATES if m[0] in wanted]
-    calls = len(models) * 42
+    if args.only_decision:
+        models = []
+    decision = args.decision or args.only_decision
+    calls = len(models) * 42 + (42 if decision else 0)
     print(
         f"Stima: {len(models)} modelli × 42 chiamate = {calls} chiamate, sotto {calls * 0.001:.2f} USD"
     )
     if not args.yes and input("Procedo? [s/N] ").strip().lower() not in {"s", "si", "sì", "y"}:
         sys.exit("annullato")
-    asyncio.run(run(models))
+    asyncio.run(run(models, decision))
 
 
 if __name__ == "__main__":

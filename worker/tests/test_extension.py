@@ -542,3 +542,60 @@ def test_installer_is_idempotent(database_url: str) -> None:
         assert install(c) == []
         versions = c.execute("SELECT version FROM ai.schema_version ORDER BY version").fetchall()
         assert [v[0] for v in versions] == [f.version for f in sql_files()]
+
+
+def test_decision_backend_definition_rules(conn: psycopg.Connection[DictRow], ticket: str) -> None:
+    with pytest.raises(psycopg.errors.RaiseException, match="enum criteria"):
+        conn.execute(
+            "SELECT ai.add_column('ticket', 'x', array['body'], 'enum', p_backend => 'decision',"
+            " p_prompt => 'p', p_model => 'typesafe/jev-1.13', p_output_schema => '[\"a\", \"b\"]')"
+        )
+    with pytest.raises(psycopg.errors.RaiseException, match="typed questions only"):
+        conn.execute(
+            "SELECT ai.add_column('ticket', 'x', array['body'], 'text', p_backend => 'decision',"
+            " p_prompt => 'p', p_model => 'typesafe/jev-1.13')"
+        )
+    with pytest.raises(psycopg.errors.RaiseException, match="rubric"):
+        conn.execute(
+            "SELECT ai.add_column('ticket', 'x', array['body'], 'integer', p_backend => 'decision',"
+            " p_prompt => 'p', p_model => 'typesafe/jev-1.13')"
+        )
+    conn.execute(
+        "SELECT ai.add_column('ticket', 'urgency', array['body'], 'enum', p_backend => 'decision',"
+        " p_prompt => 'Urgenza', p_model => 'typesafe/jev-1.13',"
+        ' p_output_schema => \'{"low": "routine", "high": "shop cannot sell"}\')'
+    )
+    job = claim(conn, 1)[0]
+    assert job["backend"] == "decision"
+    with pytest.raises(psycopg.errors.CheckViolation):
+        complete(conn, job, "medium")
+    row = conn.execute(
+        "SELECT ai.complete_job(%s::bigint, %s, '\"high\"'::jsonb, 0.93::real, 'typesafe/jev-1.13', NULL, 90,"
+        ' \'{"probabilities": {"high": 0.93, "low": 0.07}}\'::jsonb) AS outcome',
+        (job["job_id"], job["source_hash"]),
+    ).fetchone()
+    assert row is not None and row["outcome"] == "written"
+    result = conn.execute(
+        "SELECT value, confidence, details FROM ai.result WHERE is_current"
+    ).fetchone()
+    assert result is not None
+    assert result["value"] == "high" and result["details"]["probabilities"]["high"] == 0.93
+    assert urgency_of(conn, job["row_pk"]["id"]) == "high"
+
+
+def test_enum_schema_with_descriptions_works_for_llm_too(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    conn.execute(
+        "SELECT ai.add_column('ticket', 'urgency', array['body'], 'enum', p_prompt => 'p', p_model => 'm',"
+        ' p_output_schema => \'{"low": "routine", "high": "shop cannot sell"}\')'
+    )
+    job = claim(conn, 1)[0]
+    assert complete(conn, job, "low") == "written"
+    with pytest.raises(
+        psycopg.errors.RaiseException, match="non-empty array of strings or an object"
+    ):
+        conn.execute(
+            "SELECT ai.add_column('ticket', 'x', array['body'], 'enum', p_prompt => 'p', p_model => 'm',"
+            " p_output_schema => '{\"low\": 1}')"
+        )

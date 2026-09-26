@@ -41,10 +41,10 @@ Ogni configurazione che ha prodotto risultati. Non si modifica mai: un cambiamen
 | id | bigserial | PK |
 | column_def_id | bigint | FK |
 | version | integer | progressivo per definizione |
-| backend | ai.backend | `llm`, `embedding`, `custom` |
-| prompt | text | istruzione per il modello, senza template; null per `embedding` e `custom` |
+| backend | ai.backend | `llm`, `decision`, `embedding`, `custom` |
+| prompt | text | istruzione per il modello, senza template; per `decision` sono le instructions della domanda; null per `embedding` e `custom` |
 | model | text | id OpenRouter, es. `anthropic/claude-haiku-4.5`; per `custom` un nome libero che identifica il worker |
-| output_schema | jsonb | per `enum` la lista dei valori, per `jsonb` il JSON schema, per `vector` `{"dimensions": 1024}`, per gli altri vincoli opzionali (min, max, max_length) |
+| output_schema | jsonb | per `enum` la lista dei valori oppure un oggetto `{valore: descrizione}` (obbligatorio con `decision`, dove le descrizioni sono i criteri); per `boolean` con `decision` opzionale `{"true": ..., "false": ...}`; per `integer` e `numeric` con `decision` `{"levels": [2-10 descrizioni]}`; per `jsonb` il JSON schema; per `vector` `{"dimensions": 1024}`; per gli altri vincoli opzionali (min, max, max_length) |
 | backend_config | jsonb | parametri del backend: temperature per `llm`, batch size di chiamata per `embedding`, libero per `custom` |
 | created_at | timestamptz | |
 
@@ -89,6 +89,7 @@ Il lineage: ogni valore mai prodotto per una riga e colonna, da modello o da uma
 | model | text | modello che ha risposto davvero (può differire dal richiesto per fallback del provider) |
 | usage | jsonb | token e costo riportati dal provider |
 | latency_ms | integer | |
+| details | jsonb | extra del backend: per `decision` le probabilità per classe (`probabilities`), la probabilità del vero (`probability_true`), il punteggio grezzo e la legenda |
 | created_at | timestamptz | |
 
 Unique parziale su `(column_def_id, row_pk) WHERE is_current`. Indice su `(column_def_id, column_version_id)` per trovare le righe stale.
@@ -112,7 +113,7 @@ Unique parziale su `(column_def_id, row_pk) WHERE is_current`. Indice su `(colum
 
 Gestione: `ai.add_column`, `ai.update_column` (nuova versione), `ai.configure` (policy senza versione), `ai.drop_column`, `ai.enable`, `ai.disable`, `ai.backfill`, `ai.unpin`, `ai.retry_dead`, `ai.prune_jobs`. Ogni funzione ha un `COMMENT` leggibile con `\df+ ai.*`.
 
-Contratto worker: `ai.claim_jobs(worker_id, batch_size, backends[])`, `ai.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms)` che restituisce `ai.complete_outcome` (`written`, `held`, `stale_requeued`, `cancelled`), `ai.fail_job(job_id, error, retryable)` che restituisce lo stato risultante, `ai.reclaim_stale(timeout)`. Canale `NOTIFY ai_jobs` con l'id della definizione a ogni accodamento.
+Contratto worker: `ai.claim_jobs(worker_id, batch_size, backends[])`, `ai.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms, details)` che restituisce `ai.complete_outcome` (`written`, `held`, `stale_requeued`, `cancelled`), `ai.fail_job(job_id, error, retryable)` che restituisce lo stato risultante, `ai.reclaim_stale(timeout)`. Canale `NOTIFY ai_jobs` con l'id della definizione a ogni accodamento.
 
 Trigger per tabella utente: `ai_enqueue_<column>` (AFTER INSERT OR UPDATE OF sorgenti) e `ai_override_<column>` (AFTER UPDATE OF target). Il secondo ignora le scritture fatte dentro `complete_job` (GUC `ai.writer = 'worker'`); un UPDATE a NULL fatto a mano toglie il pin e riaccoda la riga.
 

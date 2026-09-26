@@ -14,12 +14,19 @@ CONFIDENCE_SCHEMA: dict[str, Any] = {
 }
 
 
+def enum_values(output_schema: Any) -> list[str]:
+    """Allowed enum values: the array itself, or the keys of a {value: description} object."""
+    if isinstance(output_schema, dict):
+        return [str(k) for k in output_schema]
+    return [str(v) for v in output_schema]
+
+
 def value_schema(output_type: str, output_schema: Any) -> dict[str, Any]:
     """Schema of the `value` field alone."""
     constraints: dict[str, Any] = output_schema if isinstance(output_schema, dict) else {}
     match output_type:
         case "enum":
-            return {"type": "string", "enum": list(output_schema)}
+            return {"type": "string", "enum": enum_values(output_schema)}
         case "text":
             schema: dict[str, Any] = {"type": "string"}
             if "max_length" in constraints:

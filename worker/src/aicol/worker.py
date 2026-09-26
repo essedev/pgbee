@@ -85,13 +85,13 @@ class Worker:
         return stats
 
     async def _run_group(self, backend: str, jobs: list[Job], stats: BatchStats) -> None:
-        if backend == "llm":
+        if backend in ("llm", "decision"):
             concurrency = int(jobs[0].config.get("concurrency", 4))
             semaphore = asyncio.Semaphore(max(1, concurrency))
 
             async def one(job: Job) -> None:
                 async with semaphore:
-                    await self._run_llm(job, stats)
+                    await self._run_single(job, stats)
 
             await asyncio.gather(*(one(job) for job in jobs))
         elif backend == "embedding":
@@ -106,9 +106,13 @@ class Worker:
                     stats,
                 )
 
-    async def _run_llm(self, job: Job, stats: BatchStats) -> None:
+    async def _run_single(self, job: Job, stats: BatchStats) -> None:
+        """One row, one call: llm (structured generation) or decision (typed question)."""
         try:
-            result = await self._provider.derive(job)
+            if job.backend == "decision":
+                result = await self._provider.decide(job)
+            else:
+                result = await self._provider.derive(job)
         except Exception as exc:
             await self._fail(job, classify(exc), stats)
             return
@@ -119,6 +123,7 @@ class Worker:
             model=result.model,
             usage=result.usage,
             latency_ms=result.latency_ms,
+            details=result.details,
         )
         stats.outcomes[outcome] += 1
         log.info(

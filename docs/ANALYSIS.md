@@ -37,7 +37,7 @@ Nessuno oggi fa colonne derivate generiche con lineage, versioning e override su
 
 ## Perimetro
 
-Tre backend e basta: `llm` (classificazione, estrazione strutturata, riassunto), `embedding` (vettori per la ricerca semantica) e `custom` (un worker dell'utente calcola il valore). Sono lo stesso meccanismo: un valore derivato da colonne sorgente, prodotto fuori dal database, da tenere aggiornato. Cambiare il modello di embedding e rifare tutti i vettori è la stessa operazione di cambiare un prompt. Fuori perimetro, per scelta (`DECISIONS.md` #10): job senza riga di destinazione, cron, workflow, join semantici, ricerca e RAG (li fanno pgvector e Postgres, noi li alimentiamo), memoria conversazionale, agenti.
+Quattro backend e basta: `llm` (classificazione, estrazione strutturata, riassunto), `decision` (modelli a risposta tipizzata con probabilità calibrate, per classificazione e flag), `embedding` (vettori per la ricerca semantica) e `custom` (un worker dell'utente calcola il valore). Sono lo stesso meccanismo: un valore derivato da colonne sorgente, prodotto fuori dal database, da tenere aggiornato. Cambiare il modello di embedding e rifare tutti i vettori è la stessa operazione di cambiare un prompt. Fuori perimetro, per scelta (`DECISIONS.md` #10): job senza riga di destinazione, cron, workflow, join semantici, ricerca e RAG (li fanno pgvector e Postgres, noi li alimentiamo), memoria conversazionale, agenti.
 
 ## Perché Postgres e non SQLite (per ora)
 
@@ -57,6 +57,7 @@ Sette modelli scelti incrociando l'indice di intelligenza e il tempo al primo to
 
 | Modello | Reasoning | Accuratezza | USD | Latenza media |
 |---|---|---|---|---|
+| typesafe/jev-1.13 (backend `decision`) | n/a | 100% | 0,0008 | 0,4 s |
 | xiaomi/mimo-v2.6-pro | off | 100% | 0,0023 | 2,3 s |
 | openai/gpt-6-luna | low | 100% | 0,0018 | 1,5 s |
 | anthropic/claude-haiku-4.5 | default | 100% | 0,0213 | 1,2 s |
@@ -66,6 +67,14 @@ Sette modelli scelti incrociando l'indice di intelligenza e il tempo al primo to
 | mistralai/ministral-14b-2512 | n/d | 93% | 0,0007 | 0,7 s |
 
 Letture: sul compito "classifica una riga corta" i modelli piccoli del 2026 sono equivalenti a Haiku 4.5 a un decimo del costo; Gemini Flash a effort low produce comunque migliaia di token di reasoning e costa come Haiku; GLM 5.3 Flash non permette di disattivare il reasoning (errore 400, il job finisce `dead`, comportamento corretto); Ministral 14B sbaglia dove serve giudizio (URGENTE scritto dal cliente su una richiesta amministrativa). Il default della demo passa a `openai/gpt-6-luna` con effort low. La confidenza auto-riportata è risultata quasi sempre 0,85 o più, anche sulle risposte sbagliate: conferma la decisione #6 di chiamarla euristica.
+
+## Modelli di decisione: TypeSafe Jev
+
+Jev (TypeSafe AI, accesso anticipato dal 15 settembre 2026) non è un LLM: in un passaggio parallelo risponde a domande tipizzate, scelta fra classi, vero/falso, punteggio su rubrica, con probabilità calibrate, in 70-500 ms, a 0,042 $ per milione di token in ingresso e output gratuito. È esattamente la forma "classificatore con confidenza vera" che il progetto voleva fin dall'inizio, e ha portato al backend `decision` (`DECISIONS.md` #12).
+
+Accesso: le registrazioni dirette su TypeSafe sono sospese dal 22 settembre 2026 per la domanda; OpenRouter lo serve sull'endpoint `POST /api/alpha/decisions` con il modello `typesafe/jev-1.13`, quindi basta la chiave OpenRouter. Attenzione a `typesafe/jev-router` su OpenRouter: è un router generico verso LLM (la prova è finita su gpt-6-luna), non Jev.
+
+Sui 21 ticket: 100 per cento su urgency e category, 0,0008 $ per 42 domande (28 volte meno di Haiku 4.5), 0,4 s a chiamata. La confidenza media è 0,93 e la minima 0,40: le cinque risposte sotto 0,8 sono i ticket 7, 9, 13, 14 e 19, cioè quattro dei cinque casi che anche le etichette di riferimento considerano ambigui. A differenza degli LLM, quando il ticket è ambiguo il numero scende davvero, ed è questo che rende utile la coda di revisione. Limiti dichiarati dal produttore: niente generazione di testo, 255 classi al massimo, inglese come lingua primaria (l'italiano ha funzionato sul campione), aritmetica e date deboli, sensibile a istruzioni iniettate nel testo. Una chiamata può contenere molte domande sullo stesso stato quasi allo stesso costo: più colonne `decision` sulla stessa tabella in una chiamata sola è un'ottimizzazione naturale (ROADMAP).
 
 ## Criterio di uscita
 

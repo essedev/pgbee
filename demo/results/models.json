@@ -2,166 +2,23 @@
   {
     "column": "urgency",
     "answered": 21,
-    "accuracy": 0.9523809523809523,
-    "misses": [
-      "1:medium≠high"
-    ],
-    "cost": 0.000996625,
-    "latency_ms": 1057,
-    "completion_tokens": 311,
+    "accuracy": 1.0,
+    "misses": [],
+    "cost": 0.000372624,
+    "latency_ms": 389,
+    "completion_tokens": 798,
     "dead": 0,
-    "model": "deepseek/deepseek-v4.1-flash"
+    "model": "typesafe/jev-1.13"
   },
   {
     "column": "category",
     "answered": 21,
     "accuracy": 1.0,
     "misses": [],
-    "cost": 0.00126384,
-    "latency_ms": 1065,
-    "completion_tokens": 347,
+    "cost": 0.000400848,
+    "latency_ms": 399,
+    "completion_tokens": 1271,
     "dead": 0,
-    "model": "deepseek/deepseek-v4.1-flash"
-  },
-  {
-    "column": "urgency",
-    "answered": 21,
-    "accuracy": 0.9523809523809523,
-    "misses": [
-      "14:low≠high/medium"
-    ],
-    "cost": 0.014223,
-    "latency_ms": 2594,
-    "completion_tokens": 2552,
-    "dead": 0,
-    "model": "google/gemini-3.7-flash"
-  },
-  {
-    "column": "category",
-    "answered": 21,
-    "accuracy": 1.0,
-    "misses": [],
-    "cost": 0.01245225,
-    "latency_ms": 2332,
-    "completion_tokens": 2021,
-    "dead": 0,
-    "model": "google/gemini-3.7-flash"
-  },
-  {
-    "column": "urgency",
-    "answered": 21,
-    "accuracy": 1.0,
-    "misses": [],
-    "cost": 0.00085796,
-    "latency_ms": 2555,
-    "completion_tokens": 461,
-    "dead": 0,
-    "model": "z-ai/glm-5.3-flash"
-  },
-  {
-    "column": "category",
-    "answered": 21,
-    "accuracy": 0.9523809523809523,
-    "misses": [
-      "3:commerciale≠altro/tecnico"
-    ],
-    "cost": 0.00076882,
-    "latency_ms": 1665,
-    "completion_tokens": 467,
-    "dead": 0,
-    "model": "z-ai/glm-5.3-flash"
-  },
-  {
-    "column": "urgency",
-    "answered": 21,
-    "accuracy": 1.0,
-    "misses": [],
-    "cost": 0.0010865828,
-    "latency_ms": 1920,
-    "completion_tokens": 344,
-    "dead": 0,
-    "model": "xiaomi/mimo-v2.6-pro"
-  },
-  {
-    "column": "category",
-    "answered": 21,
-    "accuracy": 1.0,
-    "misses": [],
-    "cost": 0.0012505774,
-    "latency_ms": 2644,
-    "completion_tokens": 374,
-    "dead": 0,
-    "model": "xiaomi/mimo-v2.6-pro"
-  },
-  {
-    "column": "urgency",
-    "answered": 21,
-    "accuracy": 1.0,
-    "misses": [],
-    "cost": 0.0009674,
-    "latency_ms": 1764,
-    "completion_tokens": 932,
-    "dead": 0,
-    "model": "openai/gpt-6-luna"
-  },
-  {
-    "column": "category",
-    "answered": 21,
-    "accuracy": 1.0,
-    "misses": [],
-    "cost": 0.0008229,
-    "latency_ms": 1218,
-    "completion_tokens": 580,
-    "dead": 0,
-    "model": "openai/gpt-6-luna"
-  },
-  {
-    "column": "urgency",
-    "answered": 21,
-    "accuracy": 0.9047619047619048,
-    "misses": [
-      "2:high≠low",
-      "15:medium≠low"
-    ],
-    "cost": 0.0002982,
-    "latency_ms": 700,
-    "completion_tokens": 355,
-    "dead": 0,
-    "model": "mistralai/ministral-14b-2512"
-  },
-  {
-    "column": "category",
-    "answered": 21,
-    "accuracy": 0.9523809523809523,
-    "misses": [
-      "10:commerciale≠altro"
-    ],
-    "cost": 0.0003982,
-    "latency_ms": 758,
-    "completion_tokens": 456,
-    "dead": 0,
-    "model": "mistralai/ministral-14b-2512"
-  },
-  {
-    "column": "urgency",
-    "answered": 21,
-    "accuracy": 1.0,
-    "misses": [],
-    "cost": 0.010408,
-    "latency_ms": 1163,
-    "completion_tokens": 357,
-    "dead": 0,
-    "model": "anthropic/claude-haiku-4.5"
-  },
-  {
-    "column": "category",
-    "answered": 21,
-    "accuracy": 1.0,
-    "misses": [],
-    "cost": 0.010875,
-    "latency_ms": 1299,
-    "completion_tokens": 379,
-    "dead": 0,
-    "model": "anthropic/claude-haiku-4.5"
+    "model": "typesafe/jev-1.13"
   }
 ]

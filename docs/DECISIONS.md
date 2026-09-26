@@ -24,7 +24,7 @@ Status: attiva. Un valore scritto da un umano non viene più ricalcolato, né al
 
 ## #6 Confidenza auto-riportata, dichiarata euristica
 
-Status: attiva. La confidenza è un numero che il modello include nell'output strutturato. Alternativa scartata: logprobs, non disponibili in modo uniforme via OpenRouter; oppure niente confidenza. Motivo: serve un segnale per la coda di revisione e per la policy `hold`; un'euristica dichiarata è meglio dell'assenza, purché la documentazione non la spacci per probabilità.
+Status: attiva per il backend `llm`; il backend `decision` (#12) restituisce probabilità calibrate e non rientra nell'euristica. La confidenza è un numero che il modello include nell'output strutturato. Alternativa scartata: logprobs, non disponibili in modo uniforme via OpenRouter; oppure niente confidenza. Motivo: serve un segnale per la coda di revisione e per la policy `hold`; un'euristica dichiarata è meglio dell'assenza, purché la documentazione non la spacci per probabilità.
 
 ## #7 psycopg senza ORM nel worker
 
@@ -45,3 +45,8 @@ Status: attiva. Una definizione dichiara un `backend`: `llm` (output strutturato
 ## #11 Embedding uno a uno nella v1, chunking dopo
 
 Status: attiva. Il backend `embedding` produce un vettore per riga in una colonna `vector` (pgvector), con dimensione dichiarata nello schema di output. Alternativa scartata: chunking del testo con N vettori per riga in una tabella collegata, come il vectorizer di pgai. Motivo: il chunking introduce una destinazione a tabella e rompe il modello "una colonna"; per l'esperimento i testi sono corti e il vettore per riga basta. Se l'esperimento passa, la destinazione a tabella entra come campo nuovo della definizione, senza toccare coda e lineage.
+
+
+## #12 Backend `decision` per i modelli a risposta tipizzata
+
+Status: attiva. I modelli di decisione (TypeSafe Jev, via l'endpoint `decisions` di OpenRouter) non generano testo: rispondono a domande tipizzate (scelta, vero/falso, punteggio su rubrica) con probabilità calibrate. Sono un backend a sé, `decision`, limitato a `enum`, `boolean`, `integer` e `numeric`, con i criteri delle classi nell'`output_schema` e le probabilità per classe salvate in `ai.result.details`. Alternativa scartata: trattarli come provider del backend `llm` scelto dal prefisso del modello. Motivo: il contratto è diverso (nessuna generazione, criteri obbligatori, confidenza vera), e nasconderlo dietro `llm` avrebbe reso la confidenza ambigua fra euristica e calibrata. `complete_job` guadagna un parametro finale opzionale `p_details`: aggiunta compatibile con i worker esistenti.

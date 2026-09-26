@@ -2,7 +2,7 @@
 
 ## Stato corrente
 
-M1, M2 e M3 completate ed eseguite contro OpenRouter: la demo gira end to end e sette modelli sono stati confrontati (`ANALYSIS.md`). Prossimo: decidere se fare M4 (demo UI). Il criterio di uscita dell'esperimento è in `ANALYSIS.md`.
+M1, M2 e M3 completate ed eseguite contro OpenRouter: la demo gira end to end e otto modelli sono stati confrontati, incluso il backend `decision` con Jev (`ANALYSIS.md`). Prossimo: decidere se fare M4 (demo UI). Il criterio di uscita dell'esperimento è in `ANALYSIS.md`.
 
 ## Prossime milestone
 
@@ -13,4 +13,4 @@ M1, M2 e M3 completate ed eseguite contro OpenRouter: la demo gira end to end e 
 
 ## Dopo l'esperimento (solo se passa)
 
-Few-shot dagli override umani, chunking con destinazione a tabella (#11), backfill a lotti per tabelle grandi, budget per definizione, packaging come estensione installabile, worker in Rust, estensione SQLite con lo stesso modello concettuale.
+Più domande `decision` sulla stessa riga in una chiamata sola, few-shot dagli override umani, chunking con destinazione a tabella (#11), backfill a lotti per tabelle grandi, budget per definizione, packaging come estensione installabile, worker in Rust, estensione SQLite con lo stesso modello concettuale.

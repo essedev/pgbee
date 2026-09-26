@@ -28,7 +28,7 @@ Un `UPDATE ticket SET urgency = 'low'` fuori dal guard del worker scatta il trig
 
 ## Confidenza
 
-I modelli non danno confidenza calibrata. La v1 chiede al modello di auto-valutarla nel JSON di output, la conserva in `ai.result.confidence` e la espone nella vista `ai.needs_review` (righe sotto la soglia della definizione). Policy `low_confidence`: `write` (default, scrive comunque) o `hold` (lascia la colonna a NULL e tiene il risultato solo nel lineage finché un umano non conferma). Il numero è un'euristica e la documentazione lo dice.
+I modelli non danno confidenza calibrata. Con il backend `llm` la v1 chiede al modello di auto-valutarla nel JSON di output; con `decision` è la probabilità calibrata della classe scelta. In entrambi i casi finisce in `ai.result.confidence` e la espone nella vista `ai.needs_review` (righe sotto la soglia della definizione). Policy `low_confidence`: `write` (default, scrive comunque) o `hold` (lascia la colonna a NULL e tiene il risultato solo nel lineage finché un umano non conferma). Il numero è un'euristica e la documentazione lo dice.
 
 ## Identità delle righe
 
@@ -36,13 +36,14 @@ L'estensione richiede una chiave primaria sulla tabella target e la legge da `pg
 
 ## Backend
 
-Ogni versione di una definizione dichiara un `backend`, cioè chi produce il valore:
+Ogni versione di una definizione dichiara un `backend`, cioè chi produce il valore (decisione #10 e #12):
 
 - `llm`: un modello di linguaggio con output strutturato. Il worker costruisce il JSON schema dal tipo dichiarato, manda prompt e sorgenti, riceve valore e confidenza. Una riga per chiamata, concorrenza limitata.
+- `decision`: un modello a risposta tipizzata (TypeSafe Jev, tramite l'endpoint `decisions` di OpenRouter). Niente generazione: la colonna diventa una domanda (scelta fra classi con descrizioni, vero/falso, punteggio su rubrica) e la risposta porta probabilità calibrate, salvate in `ai.result.details`. Solo `enum`, `boolean`, `integer`, `numeric`. Un ordine di grandezza più veloce ed economico di un LLM sulla classificazione.
 - `embedding`: un modello di embedding. Il worker manda le sorgenti a lotti (centinaia per chiamata) e riceve un vettore per riga, scritto in una colonna `vector` di pgvector con la dimensione dichiarata. Nessuna confidenza.
 - `custom`: il valore lo calcola un worker scritto dall'utente (geocoding, OCR, servizio interno) che consuma i job delle sue definizioni con lo stesso contratto. L'estensione non sa né le importa come.
 
-I tre backend condividono tutto il resto: coda, hash, versioni, ricalcolo selettivo, lineage, override. Cambiare modello di embedding e rifare i vettori è un `update_column` come cambiare un prompt.
+I quattro backend condividono tutto il resto: coda, hash, versioni, ricalcolo selettivo, lineage, override. Cambiare modello di embedding e rifare i vettori è un `update_column` come cambiare un prompt.
 
 ## Tipi di output della v1
 

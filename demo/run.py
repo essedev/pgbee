@@ -29,6 +29,7 @@ from aicol.worker import Worker
 HERE = Path(__file__).resolve().parent
 LLM_MODEL = "openai/gpt-6-luna"
 LLM_CONFIG: dict[str, Any] = {"reasoning": {"effort": "low"}}
+DECISION_MODEL = "typesafe/jev-1.13"
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
 EMBEDDING_DIMENSIONS = 1536
 
@@ -122,6 +123,20 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
             Jsonb(LLM_CONFIG),
         ),
     )
+    conn.execute(
+        "SELECT ai.add_column('ticket', 'needs_human', array['body'], 'boolean',"
+        " p_backend => 'decision', p_prompt => %s, p_model => %s, p_output_schema => %s)",
+        (
+            "Il ticket richiede che un operatore umano risponda entro oggi.",
+            DECISION_MODEL,
+            Jsonb(
+                {
+                    "true": "Il cliente è bloccato, arrabbiato, o c'è un rischio di denaro o privacy",
+                    "false": "Una risposta standard o automatica entro qualche giorno basta",
+                }
+            ),
+        ),
+    )
     if with_embedding:
         conn.execute(
             "SELECT ai.add_column('ticket', 'embedding', array['body'], 'vector',"
@@ -161,6 +176,7 @@ def cost_report(conn: psycopg.Connection[DictRow]) -> None:
 
 
 N_LLM_CALLS = 4 * 20 + 4 * 1 + 20  # four columns, one new ticket, one recompute of urgency
+N_DECISION_CALLS = 21
 
 
 def estimate(with_embedding: bool) -> str:
@@ -169,8 +185,9 @@ def estimate(with_embedding: bool) -> str:
         f"Stima: circa {N_LLM_CALLS} chiamate a {LLM_MODEL} (~400 token in, ~60 out ciascuna)"
         f" ≈ {usd:.3f} USD"
     )
+    text += f", più {N_DECISION_CALLS} decisioni con {DECISION_MODEL} (trascurabili)"
     if with_embedding:
-        text += f", più 21 embedding con {EMBEDDING_MODEL} (trascurabili)"
+        text += f" e 21 embedding con {EMBEDDING_MODEL} (trascurabili)"
     return text
 
 
@@ -199,7 +216,16 @@ async def run(args: argparse.Namespace) -> None:
     conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     if args.reset:
-        for col in ("urgency", "category", "summary", "extracted", "embedding"):
+        for col in (
+            "urgency",
+            "category",
+            "summary",
+            "extracted",
+            "needs_human",
+            "embedding",
+            "urgency_jev",
+            "category_jev",
+        ):
             try:
                 conn.execute("SELECT ai.drop_column('ticket', %s)", (col,))
             except psycopg.Error:
@@ -231,7 +257,16 @@ async def run(args: argparse.Namespace) -> None:
     await drain(worker, conn, "primo passaggio")
     show(
         conn,
-        "SELECT id, urgency, category, left(summary, 60) AS summary FROM ticket ORDER BY id",
+        "SELECT id, urgency, category, needs_human, left(summary, 52) AS summary FROM ticket ORDER BY id",
+    )
+    say(
+        "   needs_human viene da un modello di decisione (Jev): probabilità vera, non auto-riportata"
+    )
+    show(
+        conn,
+        "SELECT r.row_pk ->> 'id' AS id, r.value, r.confidence, r.details ->> 'probability_true' AS p_true, r.latency_ms"
+        " FROM ai.result r JOIN ai.column_def d ON d.id = r.column_def_id"
+        " WHERE d.column_name = 'needs_human' AND r.is_current ORDER BY (r.row_pk ->> 'id')::int LIMIT 6",
     )
     show(
         conn,

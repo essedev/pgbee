@@ -49,6 +49,23 @@ class FakeProvider:
             latency_ms=5,
         )
 
+    async def decide(self, job: Job) -> LlmResult:
+        self.calls.append(job)
+        if self.fail_with is not None:
+            raise self.fail_with
+        text = job.source_text().lower()
+        high = "giù" in text or "urgente" in text
+        return LlmResult(
+            value="high" if high else "low",
+            confidence=0.97 if high else 0.81,
+            model="typesafe/jev-1.13-fake",
+            usage={"prompt_tokens": 40, "completion_tokens": 20, "cost": 0.00000168},
+            latency_ms=90,
+            details={
+                "probabilities": {"high": 0.97 if high else 0.19, "low": 0.03 if high else 0.81}
+            },
+        )
+
     async def embed(self, model: str, texts: list[str], config: dict[str, Any]) -> EmbeddingResult:
         self.embed_calls.append(texts)
         if self.fail_with is not None:
@@ -247,3 +264,74 @@ def test_parse_json_object_tolerates_trailing_text_and_fences() -> None:
     }
     with pytest.raises(json.JSONDecodeError):
         parse_json_object("not json at all")
+
+
+async def test_worker_routes_decision_backend_and_stores_details(
+    conn: psycopg.Connection[DictRow], ticket: str, database_url: str
+) -> None:
+    conn.execute(
+        "SELECT ai.add_column('ticket', 'urgency', array['body'], 'enum', p_backend => 'decision',"
+        " p_prompt => 'Urgenza', p_model => 'typesafe/jev-1.13',"
+        ' p_output_schema => \'{"low": "routine", "high": "shop cannot sell"}\')'
+    )
+    provider = FakeProvider()
+    stats = await run_once(database_url, provider)
+    assert stats.outcomes == {"written": 3} and all(j.backend == "decision" for j in provider.calls)
+    rows = conn.execute(
+        "SELECT r.value, r.confidence, r.details FROM ai.result r WHERE r.is_current ORDER BY r.row_pk"
+    ).fetchall()
+    assert rows[0]["value"] == "high" and rows[0]["details"]["probabilities"]["high"] == 0.97
+    assert conn.execute("SELECT urgency FROM ticket WHERE id = 1").fetchone() == {"urgency": "high"}
+
+
+def test_decision_question_and_answer_mapping() -> None:
+    from aicol.providers import decision_answer, decision_question
+
+    def job(output_type: str, schema: Any, source: dict[str, Any] | None = None) -> Job:
+        return Job(
+            job_id=1,
+            column_def_id=1,
+            column_version_id=1,
+            backend="decision",
+            model="typesafe/jev-1.13",
+            prompt="p",
+            output_type=output_type,
+            output_schema=schema,
+            backend_config={},
+            config={},
+            row_pk={"id": 1},
+            source_hash=b"",
+            attempts=1,
+            source=source or {"body": "x"},
+        )
+
+    q = decision_question(job("enum", {"a": "A", "b": "B"}))
+    assert q == {"type": "choice", "instructions": "p", "criteria": {"a": "A", "b": "B"}}
+    assert decision_question(job("boolean", {}))["type"] == "noul"
+    assert decision_question(job("integer", {"levels": ["calm", "angry"]}))["criteria"] == [
+        "calm",
+        "angry",
+    ]
+    with pytest.raises(ProviderError):
+        decision_question(job("text", {}))
+
+    value, conf, details = decision_answer(
+        job("enum", {"a": "A", "b": "B"}),
+        {"choice": "b", "confidence": 0.8, "probabilities": {"a": 0.2, "b": 0.8}},
+    )
+    assert (value, conf, details["probabilities"]["b"]) == ("b", 0.8, 0.8)
+    assert decision_answer(job("boolean", {}), {"noul": 0.3})[:2] == (False, 0.7)
+    assert (
+        decision_answer(
+            job("integer", {"levels": ["a", "b", "c"]}), {"score": 1.6, "confidence": 0.6}
+        )[0]
+        == 2
+    )
+    assert (
+        decision_answer(job("numeric", {"levels": ["a", "b"]}), {"score": 0.4, "confidence": 0.9})[
+            0
+        ]
+        == 0.4
+    )
+    with pytest.raises(ProviderError):
+        decision_answer(job("enum", {"a": "A"}), {"choice": "zzz", "confidence": 1})

@@ -157,6 +157,7 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
       <tr><td>PostgresML</td><td>Modelli dentro Postgres con GPU</td><td>Altro problema (inferenza in-DB), pesante da operare</td></tr>
       <tr><td>SQLite-AI</td><td>Modelli locali GGUF, embedding, chat da SQL</td><td>Funzioni da chiamare, non colonne mantenute</td></tr>
       <tr><td>Snowflake Cortex, Databricks, BigQuery</td><td><code>AI_CLASSIFY</code>, <code>ai_extract</code> nativi</td><td>Warehouse. Chiamate sincrone nella query, non colonne con lineage</td></tr>
+      <tr><td>TypeSafe Jev</td><td>Modello di decisione: risposte tipizzate con probabilità calibrate, 70-500 ms</td><td>È un modello, non un sistema di colonne: lo usiamo come backend <code>decision</code></td></tr>
       <tr><td>Airtable, Notion</td><td>La stessa idea lato no-code</td><td>Chiusi, SaaS, niente per sviluppatori</td></tr>
     </tbody>
   </table>
@@ -164,10 +165,11 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
 </section>
 
 <section id="perimetro">
-  <h2>Perimetro: tre backend e basta</h2>
-  <p>Una definizione dichiara chi produce il valore. I tre backend condividono coda, hash, versioni, ricalcolo selettivo, lineage e override: cambiare modello di embedding e rifare i vettori è la stessa operazione di cambiare un prompt.</p>
+  <h2>Perimetro: quattro backend e basta</h2>
+  <p>Una definizione dichiara chi produce il valore. I quattro backend condividono coda, hash, versioni, ricalcolo selettivo, lineage e override: cambiare modello di embedding e rifare i vettori è la stessa operazione di cambiare un prompt.</p>
   <div class="grid">
     <div class="card"><h4><code>llm</code></h4><p>Classificazione, estrazione strutturata, riassunto. Output JSON validato contro il tipo dichiarato, con confidenza. Una riga per chiamata.</p></div>
+    <div class="card"><h4><code>decision</code></h4><p>Modelli a risposta tipizzata (TypeSafe Jev): scelta fra classi, vero/falso, punteggio, con probabilità calibrate. Solo enum, boolean, numerici. Dieci volte più veloce e più economico di un LLM.</p></div>
     <div class="card"><h4><code>embedding</code></h4><p>Un vettore per riga in una colonna pgvector, per la ricerca semantica. Sorgenti mandate a lotti di centinaia per chiamata.</p></div>
     <div class="card"><h4><code>custom</code></h4><p>Il valore lo calcola un worker scritto dall'utente (geocoding, OCR, servizio interno) con lo stesso contratto SQL. Ottiene gratis retry, versioni, lineage, override.</p></div>
   </div>
@@ -203,7 +205,7 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
     <thead><tr><th>Tabella</th><th>Cosa contiene</th><th>Perché esiste</th></tr></thead>
     <tbody>
       <tr><td><code>ai.column_def</code></td><td>Tabella, colonna target, colonne sorgente, tipo di output, policy operative (batch, tentativi, soglia di confidenza, cosa fare con l'override)</td><td>Identifica la colonna derivata. Non cambia quando cambia il prompt</td></tr>
-      <tr><td><code>ai.column_version</code></td><td>Backend (<code>llm</code>, <code>embedding</code>, <code>custom</code>), prompt, modello, schema di output, parametri. Una riga per ogni configurazione mai usata, mai modificata</td><td>Rende il ricalcolo incrementale una query e il lineage gratuito</td></tr>
+      <tr><td><code>ai.column_version</code></td><td>Backend (<code>llm</code>, <code>decision</code>, <code>embedding</code>, <code>custom</code>), prompt, modello, schema di output, parametri. Una riga per ogni configurazione mai usata, mai modificata</td><td>Rende il ricalcolo incrementale una query e il lineage gratuito</td></tr>
       <tr><td><code>ai.job</code></td><td>Riga da processare, hash delle sorgenti, stato, tentativi, prossimo tentativo, chi l'ha preso</td><td>La coda. Al massimo un job vivo per riga e colonna</td></tr>
       <tr><td><code>ai.result</code></td><td>Ogni valore prodotto: da quale versione, su quale hash, con che confidenza, da modello o da umano, quanto è costato</td><td>Il lineage. Uno solo è "corrente" per riga e colonna</td></tr>
     </tbody>
@@ -213,7 +215,7 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
 
 <section id="decisioni">
   <h2>Decisioni: pro e contro</h2>
-  <p class="small">Le stesse undici voci di <code>docs/DECISIONS.md</code>, qui con i due lati espliciti. Tutte revocabili: il punto è sapere cosa si compra e cosa si paga.</p>
+  <p class="small">Le stesse dodici voci di <code>docs/DECISIONS.md</code>, qui con i due lati espliciti. Tutte revocabili: il punto è sapere cosa si compra e cosa si paga.</p>
 
   <article class="decision">
     <header><span class="num">#1</span><h3>Estensione in SQL puro, non compilata</h3><span class="tag">attiva</span></header>
@@ -272,7 +274,7 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
       <div class="pro"><strong>Pro</strong><ul><li>Funziona con qualunque modello che produce JSON</li><li>Abilita la coda di revisione (<code>ai.needs_review</code>) e la policy <code>hold</code></li><li>Costo zero: un campo in più nello stesso output</li></ul></div>
       <div class="con"><strong>Contro</strong><ul><li>Non è una probabilità calibrata: un modello può dire 0.9 e sbagliare</li><li>Chi la legge come probabilità prende decisioni sbagliate</li><li>Varia da modello a modello: le soglie non sono trasferibili</li></ul></div>
     </div>
-    <div class="verdict"><b>Perché così:</b> meglio un segnale dichiaratamente euristico che nessun segnale. La documentazione lo chiama euristica ovunque, mai probabilità.</div>
+    <div class="verdict"><b>Perché così:</b> meglio un segnale dichiaratamente euristico che nessun segnale. La documentazione lo chiama euristica ovunque, mai probabilità. Con il backend <code>decision</code> (#12) la confidenza è invece una probabilità calibrata.</div>
   </article>
 
   <article class="decision">
@@ -323,6 +325,16 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
       <div class="con"><strong>Contro</strong><ul><li>Documenti lunghi si embeddano male in un vettore solo: la ricerca perde precisione</li><li>Il chunking è la feature che pgai aveva e noi no, finché non arriva</li><li>La destinazione a tabella sarà un campo nuovo della definizione: una migrazione in più</li></ul></div>
     </div>
     <div class="verdict"><b>Perché così:</b> il chunking rompe "una colonna" e va progettato con calma nella fase prodotto, se ci si arriva.</div>
+  </article>
+
+  <article class="decision">
+    <header><span class="num">#12</span><h3>Backend <code>decision</code> per i modelli a risposta tipizzata</h3><span class="tag">attiva</span></header>
+    <div class="alt">Alternativa scartata: <b>trattare Jev come un provider del backend <code>llm</code></b> scelto dal prefisso del modello.</div>
+    <div class="pc">
+      <div class="pro"><strong>Pro</strong><ul><li>La confidenza diventa una probabilità calibrata, non un numero auto-riportato: la coda di revisione funziona davvero</li><li>Sui 21 ticket: 100% di accuratezza, 0,4 s, 28 volte meno di Haiku 4.5</li><li>Le probabilità per classe restano nel lineage (<code>details</code>): si vede la seconda scelta</li></ul></div>
+      <div class="con"><strong>Contro</strong><ul><li>Un backend in più da spiegare, e i criteri con descrizione sono obbligatori</li><li>Un solo fornitore oggi, in accesso anticipato, servito da OpenRouter su un endpoint ancora alpha</li><li>Solo classificazione e flag: niente riassunti né estrazione</li></ul></div>
+    </div>
+    <div class="verdict"><b>Perché così:</b> il contratto è diverso (nessuna generazione, criteri, confidenza vera) e nasconderlo dietro <code>llm</code> avrebbe reso ambiguo il significato di confidenza.</div>
   </article>
 </section>
 
