@@ -51,6 +51,22 @@ Il fossato è asincrono: coda, batch, retry, concorrenza tra worker. SQLite è u
 
 Quindi: l'estensione possiede catalogo, coda, lineage e regole; un worker esterno, sotto il controllo di chi lo installa, preleva i job e parla con i modelli. Il contratto tra i due è SQL pubblico, così un'azienda può scrivere il proprio worker dietro il proprio gateway.
 
+## Confronto modelli per la classificazione (26 settembre 2026)
+
+Sette modelli scelti incrociando l'indice di intelligenza e il tempo al primo token di Artificial Analysis (snapshot pubblico giornaliero, la chiave API fornita risultava non valida) con prezzi e supporto dell'output strutturato su OpenRouter. Misurati con `demo/compare_models.py` sulle colonne `urgency` e `category` dei 21 ticket della demo, contro le etichette di `demo/gold.json`. Campione piccolo: una riga vale il 5 per cento, le differenze sotto il 10 per cento non sono significative. Costo per 42 chiamate.
+
+| Modello | Reasoning | Accuratezza | USD | Latenza media |
+|---|---|---|---|---|
+| xiaomi/mimo-v2.6-pro | off | 100% | 0,0023 | 2,3 s |
+| openai/gpt-6-luna | low | 100% | 0,0018 | 1,5 s |
+| anthropic/claude-haiku-4.5 | default | 100% | 0,0213 | 1,2 s |
+| deepseek/deepseek-v4.1-flash | off | 98% | 0,0023 | 1,1 s |
+| google/gemini-3.7-flash | low | 98% | 0,0267 | 2,5 s |
+| z-ai/glm-5.3-flash | low | 98% | 0,0016 | 2,1 s |
+| mistralai/ministral-14b-2512 | n/d | 93% | 0,0007 | 0,7 s |
+
+Letture: sul compito "classifica una riga corta" i modelli piccoli del 2026 sono equivalenti a Haiku 4.5 a un decimo del costo; Gemini Flash a effort low produce comunque migliaia di token di reasoning e costa come Haiku; GLM 5.3 Flash non permette di disattivare il reasoning (errore 400, il job finisce `dead`, comportamento corretto); Ministral 14B sbaglia dove serve giudizio (URGENTE scritto dal cliente su una richiesta amministrativa). Il default della demo passa a `openai/gpt-6-luna` con effort low. La confidenza auto-riportata è risultata quasi sempre 0,85 o più, anche sulle risposte sbagliate: conferma la decisione #6 di chiamarla euristica.
+
 ## Criterio di uscita
 
 La demo mostra il ciclo completo su dati realistici: inserimento, coda, batch, retry sotto errore, cambio prompt con ricalcolo selettivo, override umano che resta. Se il ciclo regge senza interventi manuali e l'esperienza "aggiungi la colonna e non tocchi più niente" convince, si passa alla fase prodotto (packaging, worker compilato, chunking, SQLite). Altrimenti si chiude e resta il modello concettuale.

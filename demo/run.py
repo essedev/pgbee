@@ -27,7 +27,8 @@ from aicol.settings import load_settings
 from aicol.worker import Worker
 
 HERE = Path(__file__).resolve().parent
-LLM_MODEL = "anthropic/claude-haiku-4.5"
+LLM_MODEL = "openai/gpt-6-luna"
+LLM_CONFIG: dict[str, Any] = {"reasoning": {"effort": "low"}}
 EMBEDDING_MODEL = "openai/text-embedding-3-small"
 EMBEDDING_DIMENSIONS = 1536
 
@@ -75,7 +76,7 @@ def _cell(v: Any) -> str:
 def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> None:
     conn.execute(
         "SELECT ai.add_column('ticket', 'urgency', array['body'], 'enum',"
-        " p_prompt => %s, p_model => %s, p_output_schema => %s::jsonb,"
+        " p_prompt => %s, p_model => %s, p_output_schema => %s::jsonb, p_backend_config => %s,"
         " p_config => '{\"confidence_threshold\": 0.75}')",
         (
             "Classifica l'urgenza del ticket di assistenza. high: il negozio non vende o c'è un "
@@ -83,11 +84,12 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
             "low: domande, richieste amministrative, complimenti.",
             LLM_MODEL,
             Jsonb(URGENCIES),
+            Jsonb(LLM_CONFIG),
         ),
     )
     conn.execute(
         "SELECT ai.add_column('ticket', 'category', array['body'], 'enum',"
-        " p_prompt => %s, p_model => %s, p_output_schema => %s::jsonb)",
+        " p_prompt => %s, p_model => %s, p_output_schema => %s::jsonb, p_backend_config => %s)",
         (
             "Assegna la categoria del ticket: fatturazione (fatture, pagamenti, canoni, note di "
             "credito), tecnico (errori, bug, integrazioni, DNS, prestazioni), account (accessi, "
@@ -95,25 +97,29 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
             "altro.",
             LLM_MODEL,
             Jsonb(CATEGORIES),
+            Jsonb(LLM_CONFIG),
         ),
     )
     conn.execute(
         "SELECT ai.add_column('ticket', 'summary', array['customer', 'body'], 'text',"
-        " p_prompt => %s, p_model => %s, p_output_schema => '{\"max_length\": 120}')",
+        " p_prompt => %s, p_model => %s, p_output_schema => '{\"max_length\": 120}',"
+        " p_backend_config => %s)",
         (
             "Riassumi il ticket in una frase in italiano, al massimo 120 caratteri, che un "
             "operatore possa leggere in coda.",
             LLM_MODEL,
+            Jsonb(LLM_CONFIG),
         ),
     )
     conn.execute(
         "SELECT ai.add_column('ticket', 'extracted', array['body'], 'jsonb',"
-        " p_prompt => %s, p_model => %s, p_output_schema => %s::jsonb)",
+        " p_prompt => %s, p_model => %s, p_output_schema => %s::jsonb, p_backend_config => %s)",
         (
             "Estrai dal ticket l'azione richiesta dal cliente, se parla di denaro, e i "
             "riferimenti citati (numeri di fattura, codici, domini, nomi).",
             LLM_MODEL,
             Jsonb(EXTRACTED_SCHEMA),
+            Jsonb(LLM_CONFIG),
         ),
     )
     if with_embedding:
