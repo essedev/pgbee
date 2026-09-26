@@ -84,8 +84,15 @@ class Contract:
         await self._conn.execute("LISTEN ai_jobs")
 
     async def wait_for_notify(self, max_wait: float) -> bool:
-        """Block until a NOTIFY on ai_jobs arrives or max_wait seconds pass. True on notify."""
-        gen = self._conn.notifies(timeout=max_wait, stop_after=1)
-        async for _ in gen:
-            return True
-        return False
+        """Block until a NOTIFY on ai_jobs arrives or max_wait seconds pass. True on notify.
+
+        Notifications received while the worker was busy are queued by psycopg; they are all
+        drained here, since one claim serves them all.
+        """
+        received = False
+        async for _ in self._conn.notifies(timeout=max_wait, stop_after=1):
+            received = True
+        if received:
+            async for _ in self._conn.notifies(timeout=0):
+                pass
+        return received

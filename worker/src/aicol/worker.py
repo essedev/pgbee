@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -56,12 +57,26 @@ class Worker:
                 log.warning("jobs.reclaimed", count=reclaimed)
             stats = await self.run_once()
             if stats.rate_limited:
-                await asyncio.sleep(self._rate_limit_pause)
+                await self._pause(self._rate_limit_pause)
                 continue
             if stats.claimed >= self._batch_size:
                 continue
-            await self._db.wait_for_notify(self._poll_interval)
+            await self._idle()
         log.info("worker.stop", worker_id=self._worker_id)
+
+    async def _pause(self, seconds: float) -> None:
+        """Sleep, but return as soon as stop() is called."""
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(self._stop.wait(), timeout=seconds)
+
+    async def _idle(self) -> None:
+        """Wait for a NOTIFY, the poll interval or stop(), whichever comes first."""
+        notified = asyncio.create_task(self._db.wait_for_notify(self._poll_interval))
+        stopped = asyncio.create_task(self._stop.wait())
+        _, pending = await asyncio.wait({notified, stopped}, return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
 
     async def run_once(self) -> BatchStats:
         """Claim one batch and process it fully. Returns what happened."""
