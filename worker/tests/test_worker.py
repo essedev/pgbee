@@ -274,6 +274,12 @@ def test_decision_question_and_answer_mapping() -> None:
         decision_answer(job("enum", {"a": "A"}), {"choice": "zzz", "confidence": 1})
 
 
+def scalar(conn: psycopg.Connection[DictRow], sql: str) -> Any:
+    row = conn.execute(sql).fetchone()
+    assert row is not None
+    return next(iter(row.values()))
+
+
 def add_decision(conn: psycopg.Connection[DictRow], column: str, output_type: str) -> int:
     schema = '{"low": "routine", "high": "shop cannot sell"}' if output_type == "enum" else "{}"
     row = conn.execute(
@@ -347,3 +353,49 @@ def test_fan_out_groups_by_row_and_model_and_caps_the_questions() -> None:
     assert sorted(sorted(j.job_id for j in c) for c in calls) == [[1, 2], [3], [4]]
     many = fan_out([job(i, 1) for i in range(MAX_QUESTIONS_PER_CALL + 1)])
     assert [len(c) for c in many] == [MAX_QUESTIONS_PER_CALL, 1]
+
+
+async def test_backfill_of_two_decision_columns_still_shares_calls(
+    conn: psycopg.Connection[DictRow], ticket: str, database_url: str
+) -> None:
+    add_decision(conn, "urgency", "enum")  # its three jobs are queued first
+    add_decision(conn, "blocking", "boolean")
+    provider = FakeProvider()
+    stats = await run_once(database_url, provider, batch_size=2)
+    assert stats.claimed == 4, "two picked jobs bring their siblings on the same rows"
+    assert sorted(len(call) for call in provider.decide_calls) == [2, 2]
+
+
+def test_claim_brings_only_ready_decision_siblings_with_the_same_model(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_decision(conn, "urgency", "enum")
+    same_model = add_decision(conn, "blocking", "boolean")
+    conn.execute(
+        "SELECT ai.add_column('ticket', 'spam', array['body'], 'boolean', 'decision',"
+        " p_prompt => 'Spam?', p_model => 'typesafe/jev-2')"
+    )
+    conn.execute(
+        "SELECT ai.add_column('ticket', 'summary', array['body'], 'text',"
+        " p_prompt => 'Summary', p_model => 'openai/gpt-6-luna')"
+    )
+    # backfill order within a column is not row order: find the row claimed first
+    first = scalar(conn, "SELECT row_pk ->> 'id' FROM ai.job ORDER BY next_attempt_at, id LIMIT 1")
+    conn.execute(
+        "UPDATE ai.job SET next_attempt_at = now() + interval '1 hour'"
+        " WHERE column_def_id = %s AND row_pk ->> 'id' = %s",
+        (same_model, first),
+    )
+    claimed = conn.execute(
+        "SELECT d.column_name, j.row_pk ->> 'id' AS id FROM ai.claim_jobs('w', 1) j"
+        " JOIN ai.column_def d ON d.id = j.column_def_id ORDER BY 1"
+    ).fetchall()
+    assert claimed == [{"column_name": "urgency", "id": first}], "sibling in backoff stays"
+    claimed = conn.execute(
+        "SELECT d.column_name, j.row_pk ->> 'id' AS id FROM ai.claim_jobs('w', 1) j"
+        " JOIN ai.column_def d ON d.id = j.column_def_id ORDER BY 1"
+    ).fetchall()
+    assert [c["column_name"] for c in claimed] == ["blocking", "urgency"], (
+        "the same model sibling comes along; other models and llm columns do not"
+    )
+    assert claimed[0]["id"] == claimed[1]["id"] != first

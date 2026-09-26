@@ -43,7 +43,7 @@ L'estensione richiede una chiave primaria sulla tabella target e la legge da `pg
 Ogni versione di una definizione dichiara un `backend`, cioè chi produce il valore (decisione #10 e #12):
 
 - `llm`: un modello di linguaggio con output strutturato. Il worker costruisce il JSON schema dal tipo dichiarato, manda prompt e sorgenti, riceve valore e confidenza. Una riga per chiamata, concorrenza limitata.
-- `decision`: un modello a risposta tipizzata (TypeSafe Jev, tramite l'endpoint `decisions` di OpenRouter). Niente generazione: la colonna diventa una domanda (scelta fra classi con descrizioni, vero/falso, punteggio su rubrica) e la risposta porta probabilità calibrate, salvate in `ai.result.details`. Solo `enum`, `boolean`, `integer`, `numeric`. Un ordine di grandezza più veloce ed economico di un LLM sulla classificazione.
+- `decision`: un modello a risposta tipizzata (TypeSafe Jev, tramite l'endpoint `decisions` di OpenRouter). Niente generazione: la colonna diventa una domanda (scelta fra classi con descrizioni, vero/falso, punteggio su rubrica) e la risposta porta probabilità calibrate, salvate in `ai.result.details`. Solo `enum`, `boolean`, `integer`, `numeric`. Un ordine di grandezza più veloce ed economico di un LLM sulla classificazione. Le colonne `decision` della stessa riga con lo stesso modello e le stesse sorgenti diventano domande di una sola chiamata (fino a 16): il testo si paga una volta, e tre domande costano circa la metà che in tre chiamate. Perché succeda anche nel backfill, dove i job delle diverse colonne stanno lontani in coda, `ai.claim_jobs` porta con sé i job `decision` pronti delle stesse righe e dello stesso modello (decisione #14).
 - `embedding`: un modello di embedding. Il worker manda le sorgenti a lotti (centinaia per chiamata) e riceve un vettore per riga, scritto in una colonna `vector` di pgvector con la dimensione dichiarata. Nessuna confidenza.
 - `custom`: il valore lo calcola un worker scritto dall'utente (geocoding, OCR, servizio interno) che consuma i job delle sue definizioni con lo stesso contratto. L'estensione non sa né le importa come.
 
@@ -59,7 +59,7 @@ Le funzioni `ai.claim_jobs`, `ai.complete_job`, `ai.fail_job`, `ai.reclaim_stale
 
 ## Decisioni chiave
 
-Le decisioni con alternativa scartata stanno numerate in `DECISIONS.md`. Le principali: SQL puro invece di estensione compilata (#1), worker esterno invece di chiamate dal DB (#2), Python per il worker di riferimento con Rust rinviato (#3), stale calcolato dalle versioni invece che memorizzato (#4), override pinnato di default (#5), confidenza auto-riportata come euristica dichiarata (#6), psycopg senza ORM nel worker (#7), perimetro a colonne derivate senza job system (#10), embedding uno a uno (#11), backend `decision` separato da `llm` (#12).
+Le decisioni con alternativa scartata stanno numerate in `DECISIONS.md`. Le principali: SQL puro invece di estensione compilata (#1), worker esterno invece di chiamate dal DB (#2), Python per il worker di riferimento con Rust rinviato (#3), stale calcolato dalle versioni invece che memorizzato (#4), override pinnato di default (#5), confidenza auto-riportata come euristica dichiarata (#6), psycopg senza ORM nel worker (#7), perimetro a colonne derivate senza job system (#10), embedding uno a uno (#11), backend `decision` separato da `llm` (#12), tetto di spesa applicato al claim (#13), fratelli `decision` nello stesso claim (#14).
 
 ## Boundary
 
