@@ -21,14 +21,14 @@ class SqlFile:
 
 
 def sql_dir() -> Path:
-    """Directory holding the extension SQL files.
+    """Directory holding the extension SQL files, shipped inside the package.
 
-    Overridable with AICOL_SQL_DIR; defaults to the repository's `sql/` next to `worker/`.
+    Overridable with AICOL_SQL_DIR. The repository's top level `sql` links here.
     """
     env = os.environ.get("AICOL_SQL_DIR")
     if env:
         return Path(env)
-    return Path(__file__).resolve().parents[3] / "sql"
+    return Path(__file__).resolve().parent / "sql"
 
 
 def sql_files(directory: Path | None = None) -> list[SqlFile]:

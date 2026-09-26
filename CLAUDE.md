@@ -19,7 +19,7 @@ Colonne derivate da modello per PostgreSQL: estensione in SQL puro (`sql/`) che 
 - `make worker`: avvia il worker (`aicol run`).
 - `make demo`: seed della demo, dichiarazione delle colonne, worker.
 - `make status`: colonne derivate e contatori della coda (`aicol status`).
-- `make test`, `make test-llm` (include i test marcati `llm`, costa), `make lint`, `make format`, `make typecheck`, `make check`, `make clean`; `make help` li elenca tutti.
+- `make test`, `make test-llm` (include i test marcati `llm`, costa), `make lint`, `make format`, `make typecheck`, `make check`, `make build`, `make clean`; `make help` li elenca tutti.
 - Un solo run di test alla volta: il conftest ricrea il database.
 
 ## Convenzioni
@@ -30,7 +30,7 @@ Vedi `docs/CONVENTIONS.md`. Le regole per i file SQL sono in `.claude/rules/sql-
 
 - Il worker non deve mai contenere SQL su tabelle dell'utente: passa solo dalle funzioni e viste dello schema `ai`. Se serve leggere una tabella utente, la funzione va aggiunta all'estensione.
 - Le funzioni del contratto worker (`ai.claim_jobs`, `ai.complete_job`, `ai.fail_job`, `ai.reclaim_stale`, `ai.prune`) sono interfaccia pubblica: cambiarne la firma è una decisione, non un refactor.
-- Un file in `sql/` già committato non si modifica: correzione in un file nuovo.
+- Un file in `sql/` già committato non si modifica: correzione in un file nuovo. I file stanno in `worker/src/aicol/sql/` (finiscono nel wheel) e `sql` alla radice è un link simbolico.
 - Il worker scrive le colonne target solo tramite `ai.complete_job`, che imposta `ai.writer` con `SET LOCAL`: un UPDATE diretto viene letto dal trigger come override umano.
 - Id dei modelli OpenRouter con il punto (`anthropic/claude-haiku-4.5`, `openai/gpt-6-luna`), non con il trattino. Verificare su openrouter.ai/models prima di proporne uno nuovo; per i benchmark lo snapshot pubblico di Artificial Analysis è `github.com/garo-pro/aa-leaderboards`, il confronto sui ticket è `demo/compare_models.py`.
 - Jev (TypeSafe) si chiama via OpenRouter su `POST /api/alpha/decisions` con `typesafe/jev-1.13`, non su chat/completions; `typesafe/jev-router` è un router generico verso LLM, non Jev. Il backend `decision` richiede criteri con descrizioni nell'`output_schema`.

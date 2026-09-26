@@ -48,6 +48,9 @@ check: ## Full quality pass (format, lint, typecheck, test)
 	$(MAKE) typecheck
 	$(MAKE) test
 
+build: ## Build the worker wheel and sdist (SQL files included) into worker/dist
+	cd worker && rm -rf dist && uv build
+
 clean: ## Remove build artifacts
-	rm -rf worker/.venv worker/.pytest_cache worker/.mypy_cache worker/.ruff_cache
+	rm -rf worker/dist worker/.venv worker/.pytest_cache worker/.mypy_cache worker/.ruff_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
