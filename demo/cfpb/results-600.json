@@ -1,0 +1,206 @@
+{
+  "rows": 600,
+  "elapsed_s": 146.6,
+  "columns": [
+    {
+      "column_name": "product_jev",
+      "backend": "decision",
+      "model": "typesafe/jev-1.13",
+      "done": 600,
+      "dead": 0,
+      "retries": 0,
+      "cost_usd": 0.01156,
+      "cost_per_1000": 0.0193,
+      "avg_latency_ms": 337
+    },
+    {
+      "column_name": "money_lost",
+      "backend": "decision",
+      "model": "typesafe/jev-1.13",
+      "done": 600,
+      "dead": 0,
+      "retries": 0,
+      "cost_usd": 0.01156,
+      "cost_per_1000": 0.0193,
+      "avg_latency_ms": 337
+    },
+    {
+      "column_name": "product_llm",
+      "backend": "llm",
+      "model": "openai/gpt-6-luna",
+      "done": 600,
+      "dead": 0,
+      "retries": 0,
+      "cost_usd": 0.05181,
+      "cost_per_1000": 0.0864,
+      "avg_latency_ms": 1772
+    },
+    {
+      "column_name": "embedding",
+      "backend": "embedding",
+      "model": "openai/text-embedding-3-small",
+      "done": 600,
+      "dead": 0,
+      "retries": 0,
+      "cost_usd": 0.00324,
+      "cost_per_1000": 0.0054,
+      "avg_latency_ms": 35
+    }
+  ],
+  "errors": [],
+  "accuracy": {
+    "product_jev": 0.78,
+    "product_llm": 0.7883
+  },
+  "agreement": {
+    "agree": 0.8833,
+    "accuracy_when_agree": 0.8377,
+    "disagreements": 70
+  },
+  "calibration": {
+    "product_jev": [
+      {
+        "bucket": "<0.5",
+        "n": 16,
+        "accuracy": 0.25
+      },
+      {
+        "bucket": "0.5-0.7",
+        "n": 46,
+        "accuracy": 0.413
+      },
+      {
+        "bucket": "0.7-0.9",
+        "n": 55,
+        "accuracy": 0.564
+      },
+      {
+        "bucket": ">=0.9",
+        "n": 483,
+        "accuracy": 0.857
+      }
+    ],
+    "product_llm": [
+      {
+        "bucket": "<0.5",
+        "n": 8,
+        "accuracy": 0.0
+      },
+      {
+        "bucket": "0.5-0.7",
+        "n": 6,
+        "accuracy": 0.5
+      },
+      {
+        "bucket": "0.7-0.9",
+        "n": 91,
+        "accuracy": 0.549
+      },
+      {
+        "bucket": ">=0.9",
+        "n": 495,
+        "accuracy": 0.848
+      }
+    ]
+  },
+  "per_class_accuracy": [
+    {
+      "product_gold": "bank_account",
+      "n": 58,
+      "jev": 0.776,
+      "llm": 0.793
+    },
+    {
+      "product_gold": "credit_card",
+      "n": 47,
+      "jev": 0.894,
+      "llm": 0.872
+    },
+    {
+      "product_gold": "credit_reporting",
+      "n": 59,
+      "jev": 0.881,
+      "llm": 0.932
+    },
+    {
+      "product_gold": "debt_collection",
+      "n": 89,
+      "jev": 0.618,
+      "llm": 0.629
+    },
+    {
+      "product_gold": "money_transfer",
+      "n": 77,
+      "jev": 0.753,
+      "llm": 0.831
+    },
+    {
+      "product_gold": "mortgage",
+      "n": 78,
+      "jev": 0.949,
+      "llm": 0.974
+    },
+    {
+      "product_gold": "personal_loan",
+      "n": 64,
+      "jev": 0.625,
+      "llm": 0.578
+    },
+    {
+      "product_gold": "student_loan",
+      "n": 57,
+      "jev": 0.877,
+      "llm": 0.895
+    },
+    {
+      "product_gold": "vehicle_loan",
+      "n": 71,
+      "jev": 0.732,
+      "llm": 0.662
+    }
+  ],
+  "top_confusions": [
+    {
+      "gold": "debt_collection",
+      "predicted": "credit_reporting",
+      "n": 26
+    },
+    {
+      "gold": "vehicle_loan",
+      "predicted": "credit_reporting",
+      "n": 17
+    },
+    {
+      "gold": "money_transfer",
+      "predicted": "bank_account",
+      "n": 9
+    },
+    {
+      "gold": "personal_loan",
+      "predicted": "credit_reporting",
+      "n": 9
+    },
+    {
+      "gold": "bank_account",
+      "predicted": "money_transfer",
+      "n": 8
+    },
+    {
+      "gold": "personal_loan",
+      "predicted": "vehicle_loan",
+      "n": 6
+    },
+    {
+      "gold": "credit_card",
+      "predicted": "credit_reporting",
+      "n": 4
+    },
+    {
+      "gold": "bank_account",
+      "predicted": "credit_card",
+      "n": 4
+    }
+  ],
+  "decision_questions_per_call": 2.0,
+  "money_lost_true_rate": 0.545
+}

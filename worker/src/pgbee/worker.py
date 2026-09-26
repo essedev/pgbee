@@ -1,4 +1,9 @@
-"""The worker loop: claim a batch, run each backend, report back, wait for work."""
+"""The worker loop: claim a batch, run each backend, report back, wait for work.
+
+A Worker serves some backends through one connection. The WorkerPool runs one Worker per
+backend, each on its own connection, so a fast backend (decision, embedding) never waits for a
+slow one (llm) to finish its batch.
+"""
 
 from __future__ import annotations
 
@@ -7,12 +12,14 @@ import contextlib
 import json
 import time
 from collections import defaultdict
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 import psycopg
 import structlog
 
-from pgbee.db import Contract
+from pgbee.db import WORKER_BACKENDS, Contract
 from pgbee.jobs import Job
 from pgbee.providers import LlmResult, Provider, ProviderError, classify
 
@@ -39,7 +46,13 @@ class Worker:
         claim_timeout_seconds: int = 300,
         rate_limit_pause: float = 10.0,
         maintenance_interval: float = 3600.0,
+        backends: Sequence[str] = WORKER_BACKENDS,
+        housekeeping: bool = True,
+        stop_event: asyncio.Event | None = None,
     ) -> None:
+        unknown = set(backends) - set(WORKER_BACKENDS)
+        if unknown or not backends:
+            raise ValueError(f"backends must be a non empty subset of {WORKER_BACKENDS}")
         self._db = contract
         self._provider = provider
         self._worker_id = worker_id
@@ -49,21 +62,29 @@ class Worker:
         self._rate_limit_pause = rate_limit_pause
         self._maintenance_interval = maintenance_interval
         self._next_maintenance = 0.0
-        self._stop = asyncio.Event()
+        self._backends = list(backends)
+        self._housekeeping = housekeeping
+        self._stop = stop_event or asyncio.Event()
 
     def stop(self) -> None:
         self._stop.set()
 
     async def run_forever(self) -> None:
         await self._db.listen()
-        log.info("worker.start", worker_id=self._worker_id, batch_size=self._batch_size)
+        log.info(
+            "worker.start",
+            worker_id=self._worker_id,
+            backends=self._backends,
+            batch_size=self._batch_size,
+        )
         while not self._stop.is_set():
-            if time.monotonic() >= self._next_maintenance:
-                await self._maintain()
-                self._next_maintenance = time.monotonic() + self._maintenance_interval
-            reclaimed = await self._db.reclaim_stale(self._claim_timeout)
-            if reclaimed:
-                log.warning("jobs.reclaimed", count=reclaimed)
+            if self._housekeeping:
+                if time.monotonic() >= self._next_maintenance:
+                    await self._maintain()
+                    self._next_maintenance = time.monotonic() + self._maintenance_interval
+                reclaimed = await self._db.reclaim_stale(self._claim_timeout)
+                if reclaimed:
+                    log.warning("jobs.reclaimed", count=reclaimed)
             stats = await self.run_once()
             if stats.rate_limited:
                 await self._pause(self._rate_limit_pause)
@@ -107,7 +128,7 @@ class Worker:
     async def run_once(self) -> BatchStats:
         """Claim one batch and process it fully. Returns what happened."""
         stats = BatchStats()
-        jobs = await self._db.claim(self._worker_id, self._batch_size)
+        jobs = await self._db.claim(self._worker_id, self._batch_size, self._backends)
         stats.claimed = len(jobs)
         if not jobs:
             return stats
@@ -257,6 +278,57 @@ class Worker:
             status=status,
             error=str(error),
         )
+
+
+class WorkerPool:
+    """One Worker per backend, each with its own connection (a connection waiting for NOTIFY
+    cannot run queries). They share the stop signal; only the first does maintenance and
+    reclaims abandoned jobs."""
+
+    def __init__(
+        self,
+        connect: Callable[[], Awaitable[Contract]],
+        provider: Provider,
+        *,
+        worker_id: str,
+        backends: Sequence[str] = WORKER_BACKENDS,
+        **worker_options: Any,
+    ) -> None:
+        unknown = set(backends) - set(WORKER_BACKENDS)
+        if unknown or not backends:
+            raise ValueError(f"backends must be a non empty subset of {WORKER_BACKENDS}")
+        self._connect = connect
+        self._provider = provider
+        self._worker_id = worker_id
+        self._backends = list(dict.fromkeys(backends))
+        self._options = worker_options
+        self._stop = asyncio.Event()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    async def run_forever(self) -> None:
+        contracts: list[Contract] = []
+        try:
+            workers = []
+            for i, backend in enumerate(self._backends):
+                contract = await self._connect()
+                contracts.append(contract)
+                workers.append(
+                    Worker(
+                        contract,
+                        self._provider,
+                        worker_id=f"{self._worker_id}/{backend}",
+                        backends=[backend],
+                        housekeeping=i == 0,
+                        stop_event=self._stop,
+                        **self._options,
+                    )
+                )
+            await asyncio.gather(*(w.run_forever() for w in workers))
+        finally:
+            for contract in contracts:
+                await contract.close()
 
 
 MAX_QUESTIONS_PER_CALL = 16

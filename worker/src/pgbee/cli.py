@@ -14,11 +14,11 @@ import typer
 from psycopg.rows import dict_row
 
 from pgbee import extension
-from pgbee.db import Contract
+from pgbee.db import WORKER_BACKENDS, Contract
 from pgbee.installer import InstalledAsExtension, install
 from pgbee.providers import OpenRouterProvider
 from pgbee.settings import Settings, load_settings
-from pgbee.worker import Worker
+from pgbee.worker import Worker, WorkerPool
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
@@ -106,39 +106,54 @@ def _spend(r: dict[str, Any]) -> str:
 def run_cmd(
     once: bool = typer.Option(False, "--once", help="Process one batch and exit."),
     batch_size: int = typer.Option(20, "--batch-size", min=1),
+    backends: str = typer.Option(
+        ",".join(WORKER_BACKENDS),
+        "--backends",
+        help="Comma separated backends this worker serves, one lane each.",
+    ),
 ) -> None:
     """Consume the queue: call the models and write the results back."""
     settings = load_settings()
     if not settings.openrouter_api_key:
         raise typer.BadParameter("OPENROUTER_API_KEY is not set")
     _configure_logging(settings.log_level)
-    asyncio.run(_run(settings, once=once, batch_size=batch_size))
+    chosen = [b.strip() for b in backends.split(",") if b.strip()]
+    if not chosen or set(chosen) - set(WORKER_BACKENDS):
+        raise typer.BadParameter(f"--backends takes a subset of {','.join(WORKER_BACKENDS)}")
+    asyncio.run(_run(settings, once=once, batch_size=batch_size, backends=chosen))
 
 
-async def _run(settings: Settings, *, once: bool, batch_size: int) -> None:
+async def _run(settings: Settings, *, once: bool, batch_size: int, backends: list[str]) -> None:
     assert settings.openrouter_api_key is not None
-    contract = await Contract.connect(settings.database_url)
     provider = OpenRouterProvider(settings.openrouter_api_key, settings.openrouter_base_url)
-    worker = Worker(
-        contract,
+    options: dict[str, Any] = {
+        "batch_size": batch_size,
+        "poll_interval": settings.poll_interval_seconds,
+        "claim_timeout_seconds": settings.claim_timeout_seconds,
+        "maintenance_interval": settings.maintenance_interval_seconds,
+    }
+    if once:
+        contract = await Contract.connect(settings.database_url)
+        try:
+            worker = Worker(
+                contract, provider, worker_id=settings.worker_id, backends=backends, **options
+            )
+            stats = await worker.run_once()
+        finally:
+            await contract.close()
+        typer.echo(
+            f"claimed={stats.claimed} failed={stats.failed} "
+            + " ".join(f"{k}={v}" for k, v in stats.outcomes.items())
+        )
+        return
+    pool = WorkerPool(
+        lambda: Contract.connect(settings.database_url),
         provider,
         worker_id=settings.worker_id,
-        batch_size=batch_size,
-        poll_interval=settings.poll_interval_seconds,
-        claim_timeout_seconds=settings.claim_timeout_seconds,
-        maintenance_interval=settings.maintenance_interval_seconds,
+        backends=backends,
+        **options,
     )
-    try:
-        if once:
-            stats = await worker.run_once()
-            typer.echo(
-                f"claimed={stats.claimed} failed={stats.failed} "
-                + " ".join(f"{k}={v}" for k, v in stats.outcomes.items())
-            )
-            return
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, worker.stop)
-        await worker.run_forever()
-    finally:
-        await contract.close()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, pool.stop)
+    await pool.run_forever()

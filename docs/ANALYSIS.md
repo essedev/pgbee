@@ -104,7 +104,7 @@ Letture:
 - Sulla classificazione Jev vale quanto un LLM piccolo e costa un quinto per domanda, a un sesto della latenza; la seconda domanda sulla stessa riga non aggiunge costo di testo (2 domande per chiamata in media).
 - La confidenza di entrambi separa i casi dubbi. La tesi dei 21 ticket, "l'LLM dice sempre 0,85 o più", non regge su testi veri e più lunghi con gpt-6-luna. Jev resta un po' migliore nel concentrare gli errori sotto soglia: con soglia 0,9 la coda di revisione di Jev prende il 22 per cento delle righe e circa metà dei suoi errori, quella dell'LLM il 18 per cento delle righe e circa il 41 per cento dei suoi errori.
 - Il meccanismo ha retto al volume senza interventi: backfill a chunk, fratelli `decision` nella stessa chiamata, tetti di spesa, embedding a lotti, zero errori da gestire.
-- Da migliorare: la coda serve i job in ordine di arrivo e il backfill aggiunge un chunk alla volta, quindi le colonne avanzano a blocchi e la colonna lenta (LLM) trattiene le altre. Una ripartizione equa fra colonne nel claim è il candidato naturale (ROADMAP).
+- Difetto trovato e corretto: Jev (mediana 305 ms) ha impiegato 749 s per le sue 3000 righe, l'embedding (33 ms) 751 s, l'LLM 967 s. Il worker prendeva batch misti e aspettava la fine di tutto il batch, quindi i backend veloci avanzavano al passo dell'LLM. Con un ciclo e una connessione per backend (`DECISIONS.md` #20), rilanciato su 600 reclami (`results-600.json`): Jev finisce in 28 s, l'embedding in 21, l'LLM in 144, contro tempi quasi uguali per tutti prima.
 
 ## Criterio di uscita
 

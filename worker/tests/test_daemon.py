@@ -8,13 +8,14 @@ from collections.abc import Callable
 from typing import Any
 
 import psycopg
+import pytest
 from fakes import FakeProvider, add_urgency
 from psycopg.rows import DictRow
 
 from pgbee.db import Contract
 from pgbee.jobs import Job
 from pgbee.providers import LlmResult, Provider, ProviderError
-from pgbee.worker import Worker
+from pgbee.worker import Worker, WorkerPool
 
 
 async def wait_until(check: Callable[[], bool], limit: float = 5.0) -> float:
@@ -180,3 +181,65 @@ async def test_failed_maintenance_does_not_stop_the_queue(
         assert not task.done()
     finally:
         await shutdown(worker, contract, task)
+
+
+def add_blocking_decision(conn: psycopg.Connection[DictRow]) -> None:
+    conn.execute(
+        "SELECT bee.add_column('ticket', 'blocking', array['body'], 'boolean', 'decision',"
+        " p_prompt => 'Is the shop blocked?', p_model => 'typesafe/jev-1.13')"
+    )
+
+
+def column_filled(conn: psycopg.Connection[DictRow], column: str) -> int:
+    row = conn.execute(f"SELECT count({column}) AS n FROM ticket").fetchone()
+    assert row is not None
+    return int(row["n"])
+
+
+async def test_pool_fast_backend_does_not_wait_for_the_slow_one(
+    database_url: str, conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)  # llm, 1.5 s per call below
+    add_blocking_decision(conn)  # decision, immediate
+    pool = WorkerPool(
+        lambda: Contract.connect(database_url),
+        SlowProvider(1.5),
+        worker_id="pool",
+        poll_interval=30,
+    )
+    task = asyncio.create_task(pool.run_forever())
+    try:
+        await wait_until(lambda: column_filled(conn, "blocking") == 3, limit=1.0)
+        assert column_filled(conn, "urgency") == 0, "the llm lane is still working"
+        await wait_until(lambda: column_filled(conn, "urgency") == 3)
+    finally:
+        pool.stop()
+        await asyncio.wait_for(task, timeout=5)
+
+
+async def test_pool_serves_only_its_backends(
+    database_url: str, conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    add_blocking_decision(conn)
+    pool = WorkerPool(
+        lambda: Contract.connect(database_url),
+        FakeProvider(),
+        worker_id="pool",
+        backends=["decision"],
+        poll_interval=30,
+    )
+    task = asyncio.create_task(pool.run_forever())
+    try:
+        await wait_until(lambda: column_filled(conn, "blocking") == 3)
+        claimers = conn.execute("SELECT DISTINCT claimed_by FROM bee.job WHERE status = 'done'")
+        assert claimers.fetchall() == [{"claimed_by": "pool/decision"}]
+        assert column_filled(conn, "urgency") == 0
+    finally:
+        pool.stop()
+        await asyncio.wait_for(task, timeout=5)
+
+
+def test_backends_are_validated() -> None:
+    with pytest.raises(ValueError, match="backends"):
+        WorkerPool(Contract.connect, FakeProvider(), worker_id="x", backends=["custom"])  # type: ignore[arg-type]

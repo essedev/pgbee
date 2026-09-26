@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from typing import Any
 
 import psycopg
@@ -27,11 +28,13 @@ class Contract:
     async def close(self) -> None:
         await self._conn.close()
 
-    async def claim(self, worker_id: str, batch_size: int) -> list[Job]:
+    async def claim(
+        self, worker_id: str, batch_size: int, backends: Sequence[str] = WORKER_BACKENDS
+    ) -> list[Job]:
         cur = await self._conn.execute(
             "SELECT * FROM bee.claim_jobs(%s, %s, %s::bee.backend[])"
             " ORDER BY column_def_id, job_id",
-            (worker_id, batch_size, WORKER_BACKENDS),
+            (worker_id, batch_size, list(backends)),
         )
         return [Job.from_row(row) for row in await cur.fetchall()]
 
