@@ -14,7 +14,7 @@ import time
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeVar
 
 import psycopg
 import structlog
@@ -24,6 +24,7 @@ from pgbee.jobs import Job
 from pgbee.providers import LlmResult, Provider, ProviderError, classify
 
 log = structlog.get_logger("pgbee.worker")
+T = TypeVar("T")
 
 
 @dataclass
@@ -32,6 +33,12 @@ class BatchStats:
     outcomes: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     failed: int = 0
     rate_limited: bool = False
+
+    def add(self, other: BatchStats) -> None:
+        self.claimed += other.claimed
+        self.failed += other.failed
+        for outcome, n in other.outcomes.items():
+            self.outcomes[outcome] += n
 
 
 class Worker:
@@ -82,9 +89,7 @@ class Worker:
                 if time.monotonic() >= self._next_maintenance:
                     await self._maintain()
                     self._next_maintenance = time.monotonic() + self._maintenance_interval
-                reclaimed = await self._db.reclaim_stale(self._claim_timeout)
-                if reclaimed:
-                    log.warning("jobs.reclaimed", count=reclaimed)
+                await self._reclaim()
             stats = await self.run_once()
             if stats.rate_limited:
                 await self._pause(self._rate_limit_pause)
@@ -93,6 +98,29 @@ class Worker:
                 continue
             await self._idle()
         log.info("worker.stop", worker_id=self._worker_id)
+
+    async def drain(self, deadline: float | None = None) -> BatchStats:
+        """Process batches until nothing is ready for this worker, stop() or the deadline (a
+        time.monotonic() value), then return. The batch in flight at the deadline is finished.
+        For runs from a scheduler (cron, serverless) instead of a long running process."""
+        total = BatchStats()
+        if self._housekeeping:
+            await self._maintain()
+            await self._reclaim()
+        while not self._stop.is_set() and (deadline is None or time.monotonic() < deadline):
+            stats = await self.run_once()
+            total.add(stats)
+            if stats.rate_limited:
+                await self._pause(self._rate_limit_pause)
+                continue
+            if stats.claimed == 0:
+                break
+        return total
+
+    async def _reclaim(self) -> None:
+        reclaimed = await self._db.reclaim_stale(self._claim_timeout)
+        if reclaimed:
+            log.warning("jobs.reclaimed", count=reclaimed)
 
     async def _maintain(self) -> None:
         """Prune old lineage and done jobs in bounded batches. A failure is logged and retried
@@ -337,6 +365,14 @@ class WorkerPool:
         self._stop.set()
 
     async def run_forever(self) -> None:
+        await self._each_lane(lambda worker: worker.run_forever())
+
+    async def drain(self, deadline: float | None = None) -> dict[str, BatchStats]:
+        """Every lane drains its backend (see Worker.drain); returns the totals per backend."""
+        totals = await self._each_lane(lambda worker: worker.drain(deadline))
+        return dict(zip(self._backends, totals, strict=True))
+
+    async def _each_lane(self, run: Callable[[Worker], Awaitable[T]]) -> list[T]:
         contracts: list[Contract] = []
         try:
             workers = []
@@ -354,7 +390,7 @@ class WorkerPool:
                         **self._options,
                     )
                 )
-            await asyncio.gather(*(w.run_forever() for w in workers))
+            return list(await asyncio.gather(*(run(w) for w in workers)))
         finally:
             for contract in contracts:
                 await contract.close()

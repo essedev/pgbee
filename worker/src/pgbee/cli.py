@@ -6,6 +6,7 @@ import asyncio
 import logging
 import signal
 import sys
+import time
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -129,6 +130,17 @@ def build_provider(settings: Settings) -> Provider:
 @app.command("run")
 def run_cmd(
     once: bool = typer.Option(False, "--once", help="Process one batch and exit."),
+    drain: bool = typer.Option(
+        False,
+        "--drain",
+        help="Process until nothing is ready, then exit: for cron and serverless schedulers.",
+    ),
+    max_seconds: float | None = typer.Option(
+        None,
+        "--max-seconds",
+        min=1,
+        help="With --drain, stop claiming after this many seconds (the batch in flight finishes).",
+    ),
     batch_size: int = typer.Option(20, "--batch-size", min=1),
     backends: str = typer.Option(
         "",
@@ -138,6 +150,10 @@ def run_cmd(
     ),
 ) -> None:
     """Consume the queue: call the models and write the results back."""
+    if once and drain:
+        raise typer.BadParameter("--once and --drain are alternatives")
+    if max_seconds is not None and not drain:
+        raise typer.BadParameter("--max-seconds works with --drain")
     settings = load_settings()
     provider = build_provider(settings)
     _configure_logging(settings.log_level)
@@ -150,11 +166,28 @@ def run_cmd(
             f"{','.join(sorted(unsupported))} not available with {settings.provider_kind()}:"
             " the decision backend needs OpenRouter"
         )
-    asyncio.run(_run(settings, provider, once=once, batch_size=batch_size, backends=chosen))
+    asyncio.run(
+        _run(
+            settings,
+            provider,
+            once=once,
+            drain=drain,
+            max_seconds=max_seconds,
+            batch_size=batch_size,
+            backends=chosen,
+        )
+    )
 
 
 async def _run(
-    settings: Settings, provider: Provider, *, once: bool, batch_size: int, backends: list[str]
+    settings: Settings,
+    provider: Provider,
+    *,
+    once: bool,
+    drain: bool,
+    max_seconds: float | None,
+    batch_size: int,
+    backends: list[str],
 ) -> None:
     structlog.get_logger("pgbee").info("provider", kind=settings.provider_kind(), backends=backends)
     options: dict[str, Any] = {
@@ -187,4 +220,12 @@ async def _run(
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, pool.stop)
-    await pool.run_forever()
+    if not drain:
+        await pool.run_forever()
+        return
+    deadline = None if max_seconds is None else time.monotonic() + max_seconds
+    for backend, stats in (await pool.drain(deadline)).items():
+        typer.echo(
+            f"{backend}: claimed={stats.claimed} failed={stats.failed} "
+            + " ".join(f"{k}={v}" for k, v in stats.outcomes.items())
+        )

@@ -243,3 +243,45 @@ async def test_pool_serves_only_its_backends(
 def test_backends_are_validated() -> None:
     with pytest.raises(ValueError, match="backends"):
         WorkerPool(Contract.connect, FakeProvider(), worker_id="x", backends=["custom"])  # type: ignore[arg-type]
+
+
+async def test_drain_empties_every_lane_then_returns(
+    database_url: str, conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    add_blocking_decision(conn)
+    # A run killed by its scheduler left one job claimed: the drain gives it back first.
+    conn.execute("SELECT * FROM bee.claim_jobs('killed-run', 1, array['llm']::bee.backend[])")
+    conn.execute("UPDATE bee.job SET claimed_at = now() - interval '10 minutes'")
+    pool = WorkerPool(
+        lambda: Contract.connect(database_url),
+        FakeProvider(),
+        worker_id="cron",
+        batch_size=1,
+        claim_timeout_seconds=60,
+    )
+    totals = await asyncio.wait_for(pool.drain(), timeout=10)
+    assert totals["llm"].claimed == 3 and totals["decision"].claimed == 3
+    assert totals["embedding"].claimed == 0
+    assert totals["llm"].outcomes == {"written": 3}
+    assert column_filled(conn, "urgency") == 3 and column_filled(conn, "blocking") == 3
+
+
+async def test_drain_stops_claiming_at_the_deadline(
+    database_url: str, conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    pool = WorkerPool(
+        lambda: Contract.connect(database_url),
+        SlowProvider(1.0),
+        worker_id="cron",
+        backends=["llm"],
+        batch_size=1,
+    )
+    started = time.monotonic()
+    totals = await pool.drain(started + 1.5)
+    # One row per second from whenever the lane is connected: one or two batches start before
+    # the deadline, the third never does, and the batch in flight is finished.
+    assert totals["llm"].claimed in (1, 2)
+    assert column_filled(conn, "urgency") == totals["llm"].claimed
+    assert time.monotonic() - started < 3.5

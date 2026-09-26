@@ -139,11 +139,23 @@ Parameters are named with a `p_` prefix, so named notation reads `p_prompt => '.
 pgbee install              # apply the SQL files (idempotent)
 pgbee run                  # one lane per backend: fast models never wait for slow ones
 pgbee run --backends llm   # serve only some backends (scale them on separate machines)
+pgbee run --drain          # process until nothing is ready, then exit (cron, serverless)
 pgbee status               # columns, queues, spend
 pgbee extension-files DIR  # files for CREATE EXTENSION pgbee
 ```
 
 Environment: `DATABASE_URL`, the provider variables below, and optionally `PGBEE_WORKER_ID`, `PGBEE_POLL_INTERVAL_SECONDS`, `PGBEE_CLAIM_TIMEOUT_SECONDS`, `PGBEE_REQUEST_TIMEOUT_SECONDS` (per model call, default 60), `PGBEE_MAINTENANCE_INTERVAL_SECONDS`, `PGBEE_LOG_LEVEL`. Releases publish the worker as a Python package (`uvx pgbee`) and as Docker images on GHCR; from a clone, `make build` and `make worker-image` build them locally.
+
+### Without a long-running worker
+
+Where no process can stay up (serverless platforms, a shared host), run the worker from a scheduler: `pgbee run --drain` processes batches until nothing is ready, then exits.
+
+```bash
+# crontab: every minute, never longer than 50 seconds
+* * * * *  DATABASE_URL=... OPENROUTER_API_KEY=... pgbee run --drain --max-seconds 50
+```
+
+The same command works as a Kubernetes CronJob, a scheduled Cloud Run job or GitHub Actions workflow, with the worker image. Each run first gives back the jobs of runs that died (after `PGBEE_CLAIM_TIMEOUT_SECONDS`, which must stay above `--max-seconds` plus one batch) and does the maintenance; runs that overlap are safe, they claim different jobs. The price is latency: a value appears at the next run, and a large backfill advances only while a run is active.
 
 ### Model providers
 
