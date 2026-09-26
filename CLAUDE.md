@@ -18,7 +18,8 @@ Colonne derivate da modello per PostgreSQL: estensione in SQL puro (`sql/`) che 
 - `make db-install`: applica `sql/` al database (`aicol install`).
 - `make worker`: avvia il worker (`aicol run`).
 - `make demo`: seed della demo, dichiarazione delle colonne, worker.
-- `make test`, `make lint`, `make format`, `make check`.
+- `make status`: colonne derivate e contatori della coda (`aicol status`).
+- `make test`, `make test-llm` (include i test marcati `llm`, costa), `make lint`, `make format`, `make typecheck`, `make check`.
 - Un solo run di test alla volta: il conftest ricrea il database.
 
 ## Convenzioni
