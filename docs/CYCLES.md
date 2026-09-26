@@ -34,3 +34,18 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 **Decisioni.** #13 (tetto di spesa contato nel database e applicato al claim), #14 (fratelli `decision` nello stesso claim).
 
 **Prossimo passo.** Invariato dal ciclo 1: valutare il criterio di uscita in `ANALYSIS.md` e decidere se fare M4 (demo UI).
+
+## Ciclo 3 (26 settembre 2026): backfill a chunk
+
+**Obiettivo.** Togliere il limite dichiarato nei tradeoff: il backfill accodava tutta la tabella in una transazione, con la tabella utente bloccata in scrittura per l'intera scansione e un job per riga in coda.
+
+**Fatto.**
+
+- Backfill incrementale (`sql/0007`): `ai.backfill` accoda un chunk in ordine di chiave primaria (`backfill_chunk` nella config, default 1000, validato fra 1 e 100000) e salva un cursore in `column_def` (`backfill_pending`, `backfill_cursor`, `backfill_scanned`); `ai.claim_jobs` accoda i chunk successivi prima e dopo il claim finché la coda della colonna ha meno di un chunk pending (al massimo dieci per claim) e manda una `NOTIFY` finché la scansione non è finita. Colonne disabilitate o oltre budget non avanzano. Nessuna firma del contratto cambia.
+- Su 1M righe `add_column` passa da 39 s con la tabella bloccata a 0.06 s.
+- `ai.columns` e `aicol status` mostrano lo stato della scansione.
+- Test: sei sull'estensione (chunk e claim, righe già a posto saltate, chiavi composte e uuid, `update_column` a chunk con righe pinnate, colonne ferme, validazione) e uno sul demone, che completa un backfill a chunk senza aspettare il poll.
+
+**Decisioni.** #15 (backfill a chunk con cursore, guidato da `claim_jobs`).
+
+**Prossimo passo.** Invariato: valutare il criterio di uscita in `ANALYSIS.md` e decidere se fare M4 (demo UI).
