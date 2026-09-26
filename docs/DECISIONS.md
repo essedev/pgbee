@@ -4,7 +4,7 @@ Voci numerate, citabili come `#N`. Entra solo ciò che vincola il futuro con un'
 
 ## #1 Estensione in SQL puro, non compilata
 
-Status: attiva. L'estensione è SQL più PL/pgSQL, installata da uno script versionato e non da `CREATE EXTENSION`. Alternativa scartata: Rust con pgrx. Motivo: i Postgres gestiti non caricano estensioni compilate arbitrarie, e tutto ciò che serve alla v1 (tabelle, trigger, funzioni, `SKIP LOCKED`, `NOTIFY`) è disponibile in SQL. Il packaging come estensione vera e l'accesso al planner sono lavoro della fase prodotto, se ci si arriva.
+Status: attiva per la scelta SQL puro contro codice compilato; il rinvio di `CREATE EXTENSION` è superato da #18, che genera l'estensione dagli stessi file. L'estensione è SQL più PL/pgSQL, installata da uno script versionato e non da `CREATE EXTENSION`. Alternativa scartata: Rust con pgrx. Motivo: i Postgres gestiti non caricano estensioni compilate arbitrarie, e tutto ciò che serve alla v1 (tabelle, trigger, funzioni, `SKIP LOCKED`, `NOTIFY`) è disponibile in SQL. Il packaging come estensione vera e l'accesso al planner sono lavoro della fase prodotto, se ci si arriva.
 
 ## #2 Il database non chiama i provider
 

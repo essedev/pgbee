@@ -78,7 +78,7 @@ Sui 21 ticket: 100 per cento su urgency e category, 0,0008 $ per 42 domande (28 
 
 ## Criterio di uscita
 
-La demo mostra il ciclo completo su dati realistici: inserimento, coda, batch, retry sotto errore, cambio prompt con ricalcolo selettivo, override umano che resta. Se il ciclo regge senza interventi manuali e l'esperienza "aggiungi la colonna e non tocchi più niente" convince, si passa alla fase prodotto (packaging, worker compilato, chunking, SQLite). Altrimenti si chiude e resta il modello concettuale.
+La demo mostra il ciclo completo su dati realistici: inserimento, coda, batch, retry sotto errore, cambio prompt con ricalcolo selettivo, override umano che resta. Se il ciclo regge senza interventi manuali e l'esperienza "aggiungi la colonna e non tocchi più niente" convince, si passa alla fase prodotto (worker compilato, chunking, SQLite; il packaging è arrivato prima, `DECISIONS.md` #18). Altrimenti si chiude e resta il modello concettuale.
 
 ## Fonti
 

@@ -64,3 +64,19 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 **Decisioni.** #16 (privilegi minimi con funzioni definer), #17 (retention per colonna eseguita dal worker).
 
 **Prossimo passo.** Invariato: valutare il criterio di uscita in `ANALYSIS.md` e decidere se fare M4 (demo UI).
+
+## Ciclo 5 (26 settembre 2026): packaging, `CREATE EXTENSION`, immagine del worker
+
+**Obiettivo.** Rendere l'estensione installabile fuori dal repository: sui Postgres gestiti con il worker, sui server self-hosted come estensione vera, e il worker eseguibile in un container.
+
+**Fatto.**
+
+- I file SQL passano in `worker/src/aicol/sql/` (`sql` alla radice resta come link simbolico) e viaggiano nel wheel: `aicol install` funziona fuori dal repository, `make build` produce wheel e sdist.
+- `aicol extension-files` genera `aicol.control`, `aicol--0.1.sql` e uno script di update per ogni file successivo, ciascuno con `pg_extension_config_dump` sulle tabelle di `ai` così `pg_dump` ne salva i dati. `make extension-image` costruisce l'immagine pgvector con i file, `make test-extension` prova create, catena di update da 0.1 e dump e restore su un container usa e getta (porta 4463). `aicol install` rifiuta un database che ha già l'estensione.
+- Il giro dump e restore ha trovato due difetti invisibili con `aicol install`, corretti in `sql/0010`: la FK circolare fra `column_def` e `column_version`, e il trigger su `ai.result` che contava la spesa, ora dentro `ai.complete_job`. Regola nuova nella rule SQL: niente trigger fra tabelle di `ai`, niente FK circolari.
+- Immagine Docker del worker (`make worker-image`): multi stage sull'immagine di uv, utente non root, `aicol run` di default, configurazione solo da ambiente, `.env` esclusi dal build context.
+- Test: quattro in `test_packaging.py` (catena dei file generati più tre marcati `extension`), uno sull'estensione che verifica che la versione corrente appartenga sempre alla sua colonna.
+
+**Decisioni.** #18 (due modi di installare generati dagli stessi file); #1 aggiornata di conseguenza, #13 aggiornata sul punto in cui si conta la spesa.
+
+**Prossimo passo.** Invariato: valutare il criterio di uscita in `ANALYSIS.md` e decidere se fare M4 (demo UI).

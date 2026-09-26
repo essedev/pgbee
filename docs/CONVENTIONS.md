@@ -9,7 +9,7 @@ Regole specifiche di questo progetto. Gli standard trasversali sono nel CLAUDE.m
 
 ## SQL (`sql/`)
 
-- Un file per versione, `NNNN_descrizione.sql`, applicato una volta e mai riscritto dopo il primo commit che lo contiene. Correzioni in un file nuovo.
+- Un file per versione, `NNNN_descrizione.sql`, applicato una volta e mai riscritto dopo il primo commit che lo contiene. Correzioni in un file nuovo. Il file `NNNN` è anche la versione `0.N` dell'estensione (`aicol extension-files`).
 - Tutto nello schema `ai`. Tipi enum creati con `DO $$ ... IF NOT EXISTS` così lo script regge una seconda esecuzione parziale.
 - SQL dinamico solo con `format()` e `%I` per gli identificatori, `%L` mai per valori che arrivano dall'esterno: si usano `EXECUTE ... USING`.
 - Le funzioni del contratto worker sono stabili: cambiarne la firma è una decisione in `DECISIONS.md` e una versione nuova della funzione, non una modifica in place.
@@ -30,6 +30,7 @@ Regole specifiche di questo progetto. Gli standard trasversali sono nel CLAUDE.m
 - Integration su Postgres vero in Docker (compose del progetto), un run alla volta. Il conftest applica gli script di `sql/` da zero su un database dedicato.
 - I test dell'estensione non usano modelli: chiamano `complete_job` e `fail_job` a mano per simulare il worker.
 - I test del worker usano un provider finto etichettato come tale; i test contro OpenRouter vero portano il marker `llm` e sono esclusi dal giro di default.
+- I test che servono l'immagine con l'estensione (`CREATE EXTENSION`, catena di update, dump e restore) portano il marker `extension` e girano solo con `make test-extension`, su un container usa e getta.
 
 ## Pulizia
 
