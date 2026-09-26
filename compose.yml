@@ -1,0 +1,46 @@
+# Quickstart: Postgres with pgvector, pgbee installed, and the worker running.
+#   echo 'OPENROUTER_API_KEY=sk-or-...' > .env      (or export it)
+#   docker compose up -d
+#   docker compose exec -T postgres psql -U pgbee < examples/quickstart.sql
+name: pgbee
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: pgbee
+      POSTGRES_PASSWORD: pgbee
+      POSTGRES_DB: pgbee
+    ports:
+      - "${PGBEE_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pgbee"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  install:
+    build: worker
+    command: ["install"]
+    environment:
+      DATABASE_URL: postgresql://pgbee:pgbee@postgres:5432/pgbee
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build: worker
+    command: ["run"]
+    environment:
+      DATABASE_URL: postgresql://pgbee:pgbee@postgres:5432/pgbee
+      # From the shell or from a .env file next to this one. Without it the worker exits and says so.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    depends_on:
+      install:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  pgdata:

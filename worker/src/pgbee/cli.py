@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import sys
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -32,7 +33,7 @@ def _configure_logging(level: str) -> None:
         processors=[
             structlog.processors.TimeStamper(fmt="%H:%M:%S"),
             structlog.processors.add_log_level,
-            structlog.dev.ConsoleRenderer(),
+            structlog.dev.ConsoleRenderer(colors=sys.stderr.isatty()),
         ],
     )
 
