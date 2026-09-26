@@ -29,5 +29,6 @@ Configuration is read from `worker/.env` (see `worker/.env.example`).
 - [Architecture](docs/ARCHITECTURE.md)
 - [Database schema](docs/DATABASE_SCHEMA.md)
 - [Decisions](docs/DECISIONS.md)
+- [Cycles](docs/CYCLES.md)
 - [Conventions](docs/CONVENTIONS.md)
 - [Roadmap](docs/ROADMAP.md)
