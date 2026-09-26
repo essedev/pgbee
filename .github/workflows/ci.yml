@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run ruff check . ../demo
+      - run: uv run ruff format --check . ../demo
+      - run: uv run mypy src tests ../demo
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["15", "16", "17", "18"]
+    services:
+      postgres:
+        image: pgvector/pgvector:pg${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: aidb
+          POSTGRES_PASSWORD: aidb
+          POSTGRES_DB: aidb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aidb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://aidb:aidb@localhost:5432/aidb
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run pytest
+
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: cd worker && uv sync --locked
+      - run: make test-extension

@@ -1,0 +1,96 @@
+# Release on a version tag (v0.1.0): wheel and sdist to PyPI (trusted publishing), worker and
+# Postgres images to GHCR, extension files attached to the GitHub release.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Tag matches the package version
+        run: |
+          version=$(grep -m1 '^version' worker/pyproject.toml | cut -d'"' -f2)
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, package $version"; exit 1; }
+      - run: cd worker && uv build
+      - run: cd worker && uv sync --locked && uv run pgbee extension-files ../ext
+      - run: tar -czf "pgbee-extension-${GITHUB_REF_NAME}.tar.gz" -C ext .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: worker/dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension
+          path: |
+            ext/
+            pgbee-extension-*.tar.gz
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  images:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        postgres: ["17", "18"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension
+          path: extension/
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Worker image (once)
+        if: matrix.postgres == '18'
+        run: |
+          image=ghcr.io/${{ github.repository_owner }}/pgbee-worker
+          docker build -t "$image:${GITHUB_REF_NAME#v}" -t "$image:latest" worker
+          docker push --all-tags "$image"
+      - name: Postgres image with the extension
+        run: |
+          image=ghcr.io/${{ github.repository_owner }}/pgbee-postgres
+          tag="${GITHUB_REF_NAME#v}-pg${{ matrix.postgres }}"
+          docker build --build-arg PG_MAJOR=${{ matrix.postgres }} -t "$image:$tag" \
+            -f docker/postgres/Dockerfile extension/ext
+          docker push "$image:$tag"
+
+  github-release:
+    needs: [pypi, images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension
+          path: extension/
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: extension/pgbee-extension-*.tar.gz
+          generate_release_notes: true

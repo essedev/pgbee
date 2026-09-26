@@ -6,7 +6,7 @@ Colonne derivate da modello per PostgreSQL: estensione in SQL puro (`sql/`) che 
 
 ## Stack
 
-- Estensione: SQL e PL/pgSQL, Postgres 15+, nessun codice compilato. Schema `bee`.
+- Estensione: SQL e PL/pgSQL, Postgres 15-18 (la CI in `.github/workflows/ci.yml` li prova tutti), nessun codice compilato. Schema `bee`.
 - Worker: Python 3.13 con `uv`, psycopg 3 async (niente ORM, niente Alembic: le migrazioni sono i file di `sql/`), SDK OpenAI puntato a OpenRouter, typer per la CLI, structlog.
 - Test: pytest su Postgres vero in Docker.
 - Porte (portsage): Postgres 4460, demo API 4461, demo web 4462, container usa e getta di `make test-extension` 4463.
@@ -36,6 +36,7 @@ Vedi `docs/CONVENTIONS.md`. Le regole per i file SQL sono in `.claude/rules/sql-
 - Jev (TypeSafe) si chiama via OpenRouter su `POST /api/alpha/decisions` con `typesafe/jev-1.13`, non su chat/completions; `typesafe/jev-router` è un router generico verso LLM, non Jev. Il backend `decision` richiede criteri con descrizioni nell'`output_schema`.
 - Alcuni modelli rifiutano `reasoning.enabled = false` con un 400 (GLM 5.3 Flash): usare `effort: low`. I job finiscono `dead` correttamente, non è un bug del worker.
 - `test_roles.py` crea ruoli di cluster (`pgbee_test_worker`, `pgbee_test_app`) e li droppa a fine modulo; `bee_worker` resta nel cluster, è creato dall'install.
+- Push solo su comando esplicito; `release.yml` pubblica su PyPI e GHCR a ogni tag `v*`, quindi anche un tag è un'azione verso l'esterno.
 - Test che chiamano un modello vero portano il marker `llm`, escluso dal giro di default.
 - Costi: ogni batch verso OpenRouter costa. `demo/run.py` e `demo/cfpb/field_test.py` (0.41 USD per 3000 righe) stampano la stima e chiedono conferma; con `--yes` non chiedono. Prima di lanciarla su più di qualche decina di righe, dichiarare la stima.
 - L'SDK `openai` 3.x usa il pacchetto `httpx2`, non `httpx`: nei test le eccezioni si costruiscono con `httpx2.Request` e `httpx2.Response`.
