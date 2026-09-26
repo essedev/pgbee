@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: aidb
+      POSTGRES_PASSWORD: aidb
+      POSTGRES_DB: aidb
+    ports:
+      - "4460:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aidb -d aidb"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

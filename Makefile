@@ -1,0 +1,53 @@
+.DEFAULT_GOAL := help
+
+PG_PORT ?= 4460
+export DATABASE_URL ?= postgresql://aidb:aidb@localhost:$(PG_PORT)/aidb
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
+
+install: ## Install worker dependencies
+	cd worker && uv sync
+
+db-up: ## Start Postgres in Docker (port $(PG_PORT))
+	docker compose -f demo/compose.yml up -d --wait
+
+db-down: ## Stop Postgres
+	docker compose -f demo/compose.yml down
+
+db-install: ## Apply sql/ to the database
+	cd worker && uv run aicol install
+
+worker: ## Run the worker loop
+	cd worker && uv run aicol run
+
+status: ## Show derived columns and queue state
+	cd worker && uv run aicol status
+
+demo: ## Seed the demo, declare derived columns, run the worker
+	cd worker && uv run python ../demo/run.py
+
+test: ## Run tests (needs db-up)
+	cd worker && uv run pytest
+
+test-llm: ## Run also the tests that call a real model (costs money)
+	cd worker && uv run pytest -m "llm or not llm"
+
+lint: ## Lint
+	cd worker && uv run ruff check .
+
+format: ## Format
+	cd worker && uv run ruff format .
+
+typecheck: ## Type check
+	cd worker && uv run mypy src
+
+check: ## Full quality pass (format, lint, typecheck, test)
+	$(MAKE) format
+	$(MAKE) lint
+	$(MAKE) typecheck
+	$(MAKE) test
+
+clean: ## Remove build artifacts
+	rm -rf worker/.venv worker/.pytest_cache worker/.mypy_cache worker/.ruff_cache
+	find . -name __pycache__ -type d -prune -exec rm -rf {} +
