@@ -29,6 +29,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.9",
+    "types-jsonschema>=4.26.0.20260518",
 ]
 
 [tool.ruff]
