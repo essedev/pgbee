@@ -34,19 +34,29 @@ test-llm: ## Run also the tests that call a real model (costs money)
 	cd worker && uv run pytest -m 'not extension'
 
 lint: ## Lint
-	cd worker && uv run ruff check . ../demo
+	cd worker && uv run ruff check . ../demo ../bench
 
 format: ## Format
-	cd worker && uv run ruff format . ../demo
+	cd worker && uv run ruff format . ../demo ../bench
 
 typecheck: ## Type check
-	cd worker && uv run mypy src tests ../demo
+	cd worker && uv run mypy src tests ../demo ../bench
 
 check: ## Full quality pass (format, lint, typecheck, test)
 	$(MAKE) format
 	$(MAKE) lint
 	$(MAKE) typecheck
 	$(MAKE) test
+
+bench-failure: ## Failure injection, pgbee against two app-side designs (fake model, no cost; seed=7)
+	cd worker && uv run python ../bench/failure/chaos.py --seed $(or $(seed),7)
+
+bench-scale: ## Declaration, bulk loads and claims on 1M rows (no model)
+	cd worker && for c in backfill bulk-trigger bulk-disabled; do \
+		uv run python ../bench/scale.py $$c --out ../bench/results/scale-$$c.json || exit 1; done
+
+bench-lanes: ## One loop against one lane per backend, simulated model latencies
+	cd worker && uv run python ../bench/lanes.py --out ../bench/results/lanes.json
 
 worker-image: ## Build the worker image pgbee-worker:dev (configuration from the environment only)
 	docker build -t pgbee-worker:dev worker

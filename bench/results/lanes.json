@@ -1,0 +1,20 @@
+{
+  "rows": 200,
+  "latency_s": {
+    "llm": 1.87,
+    "decision": 0.31,
+    "embedding": 0.03
+  },
+  "seconds_until_column_filled": {
+    "one_loop": {
+      "summary": 120.1,
+      "urgent": 116.7,
+      "embedding": 116.3
+    },
+    "one_lane_per_backend": {
+      "summary": 98.1,
+      "urgent": 18.4,
+      "embedding": 4.3
+    }
+  }
+}

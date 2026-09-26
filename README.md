@@ -90,6 +90,18 @@ Output types: `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector`
 
 12,000 jobs, 0 failures, 0.41 USD in total. Both models agree with the product the consumer picked about 79% of the time. That label is noisy, so this measures agreement, not accuracy. When the models are confident (0.9 or more) the agreement is 86-88%; below 0.5 it drops to 32-35%. That is what the review queue is for.
 
+## Under failure
+
+Why keep this state in the database instead of in application code? [`bench/failure/`](bench/failure/) runs the same workload through pgbee and two app-side designs, with a fake model and no cost: save the row then enqueue on an external queue, and a transactional outbox. The queue is durable, with leases and retries. Processes are killed with SIGKILL about every 60 operations, the external queue goes down twice, the prompt changes halfway, a script edits rows behind the application's back, and people correct about 3% of the values. On 2000 rows, over three seeds:
+
+| | pgbee | save, then enqueue | outbox |
+|---|---|---|---|
+| Rows left without a value | 0 | 1-4 | 0 |
+| Stale values that look fresh | 0 | 30-49 | 15-44 |
+| Human corrections overwritten (of 56-60) | 0 | 20-27 | 21-30 |
+
+The outbox fixes lost rows and nothing else: stale values come from rows edited while computed, edits that bypass the application and jobs that read the old prompt, and corrections are lost because nothing records that a value came from a person. Details, fairness choices and the bug this test found in pgbee (fixed) are in [`bench/README.md`](bench/README.md).
+
 ## Reference
 
 ### Declaring and managing columns
@@ -185,6 +197,7 @@ With both keys set OpenRouter wins; `PGBEE_PROVIDER=openai` or `openrouter` forc
 - **Confidence is a signal, not a guarantee.** It separates doubtful rows well in our tests, but it is not calibrated for LLMs.
 - **Budgets are checked when jobs are claimed**, so a cap can be exceeded by one batch in flight. Calls that were paid for but returned an invalid answer are not counted.
 - **One provider per worker process:** OpenRouter or one OpenAI-compatible endpoint (see [Model providers](#model-providers)). `decision` uses OpenRouter's decisions API, still marked alpha. Anything else means a provider class in the worker or your own worker: the SQL contract does not depend on any provider.
+- **Writing the value a cell already holds is not an override.** ORMs often rewrite every column on save, so only a change counts as a human correction.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
@@ -197,6 +210,7 @@ make check        # format, lint, typecheck, tests
 make test-llm     # also the tests that call OpenRouter (costs a fraction of a cent)
 make test-extension
 make demo         # the Italian support-ticket demo, end to end
+make bench-failure  # the failure test above; bench-scale and bench-lanes too (bench/README.md)
 ```
 
 Design notes: [architecture](docs/ARCHITECTURE.md) (English). The working notes are in Italian: [analysis and competition](docs/ANALYSIS.md), [decisions](docs/DECISIONS.md), [database schema](docs/DATABASE_SCHEMA.md), [cycles](docs/CYCLES.md), [roadmap](docs/ROADMAP.md), [conventions](docs/CONVENTIONS.md).

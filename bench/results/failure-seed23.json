@@ -1,0 +1,319 @@
+{
+  "params": {
+    "rows": 2000,
+    "seed": 23,
+    "pace": 0.015,
+    "kill_every": 60,
+    "outages": 2,
+    "outage_seconds": 4.0,
+    "error_rate": 0.03,
+    "lease": 10,
+    "timeout": 600.0,
+    "out": "/Users/doppia/Development/Projects/ai-db/bench/results/failure-seed23.json"
+  },
+  "operations": {
+    "insert": 2000,
+    "script_edit": 221,
+    "edit": 487,
+    "fix": 60,
+    "prompt": 1
+  },
+  "load_seconds": 249.1,
+  "kills": [
+    {
+      "at_op": 60,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 97,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 150,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 194,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 283,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 358,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 435,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 525,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 578,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 657,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 735,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 776,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 818,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 851,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 931,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 979,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 1042,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 1120,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 1183,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 1224,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 1278,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 1309,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 1343,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 1394,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 1427,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 1503,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 1540,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 1604,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 1644,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 1714,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 1787,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 1844,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 1911,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 1943,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 2017,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 2052,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 2116,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 2163,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 2251,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 2322,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 2379,
+      "role": "app",
+      "index": 0
+    },
+    {
+      "at_op": 2438,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 2486,
+      "role": "worker",
+      "index": 0
+    },
+    {
+      "at_op": 2521,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 2592,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 2649,
+      "role": "worker",
+      "index": 1
+    },
+    {
+      "at_op": 2700,
+      "role": "app",
+      "index": 0
+    }
+  ],
+  "queue_outages_s": [
+    [
+      77.7,
+      81.7
+    ],
+    [
+      195.6,
+      199.6
+    ]
+  ],
+  "settled_s": {
+    "pgbee": 0.0,
+    "naive": 5.1,
+    "outbox": 0.0
+  },
+  "unexpected_exits": {},
+  "systems": {
+    "pgbee": {
+      "rows": 2000,
+      "right": 1940,
+      "missing": 0,
+      "wrong": 0,
+      "wrong_old_text": 0,
+      "wrong_old_prompt": 0,
+      "fixes": 60,
+      "fixes_overwritten": 0,
+      "body_not_replayed": 0,
+      "model_calls": 3604,
+      "model_errors": 121,
+      "flagged_stale": 0,
+      "dead_jobs": 0,
+      "human_overrides": 60
+    },
+    "naive": {
+      "rows": 2000,
+      "right": 1896,
+      "missing": 3,
+      "wrong": 41,
+      "wrong_old_text": 27,
+      "wrong_old_prompt": 14,
+      "fixes": 60,
+      "fixes_overwritten": 20,
+      "body_not_replayed": 0,
+      "model_calls": 3736,
+      "model_errors": 100
+    },
+    "outbox": {
+      "rows": 2000,
+      "right": 1896,
+      "missing": 0,
+      "wrong": 44,
+      "wrong_old_text": 29,
+      "wrong_old_prompt": 15,
+      "fixes": 60,
+      "fixes_overwritten": 21,
+      "body_not_replayed": 0,
+      "model_calls": 3733,
+      "model_errors": 100
+    }
+  }
+}
