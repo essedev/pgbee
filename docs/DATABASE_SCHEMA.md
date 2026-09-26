@@ -26,7 +26,7 @@ Una colonna derivata dichiarata. La configurazione che cambia il risultato (prom
 | source_columns | text[] | colonne che alimentano il modello |
 | output_type | bee.output_type | `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector` |
 | current_version_id | bigint | versione corrente in `column_version`, nullable solo durante la creazione. Senza FK: formerebbe un ciclo con `column_version.column_def_id` e romperebbe il restore dell'estensione (0010) |
-| config | jsonb | `batch_size`, `max_attempts`, `backoff_base_seconds`, `confidence_threshold`, `low_confidence_policy` (`write`/`hold`), `override_policy` (`pin`/`until_source_change`), `concurrency`, `budget_usd` (numero in USD, null senza tetto), `budget_period` (`day`/`month`/`total`, default `month`), `backfill_chunk` (righe per chunk di backfill, 1-100000, default 1000), `lineage_retention_days` (intero >= 1, null per conservare tutto, default null). Validato da un trigger su insert e update |
+| config | jsonb | `batch_size`, `max_attempts`, `backoff_base_seconds`, `confidence_threshold`, `low_confidence_policy` (`write`/`hold`), `override_policy` (`pin`/`until_source_change`), `concurrency`, `budget_usd` (numero in USD, null senza tetto), `budget_period` (`day`/`month`/`total`, default `month`), `backfill_chunk` (righe per chunk di backfill, 1-100000, default 1000), `lineage_retention_days` (intero >= 1, null per conservare tutto, default null), `input_usd_per_mtok` e `output_usd_per_mtok` (USD per milione di token, >= 0 o null: il worker li usa per il costo quando il provider non lo riporta). Validato da un trigger su insert e update |
 | enabled | boolean | disabilitata: i trigger restano ma non accodano |
 | backfill_pending | boolean | una scansione della tabella è in corso |
 | backfill_cursor | jsonb | chiave primaria dell'ultima riga scansionata, NULL prima del primo chunk |
@@ -46,7 +46,7 @@ Ogni configurazione che ha prodotto risultati. Non si modifica mai: un cambiamen
 | version | integer | progressivo per definizione |
 | backend | bee.backend | `llm`, `decision`, `embedding`, `custom` |
 | prompt | text | istruzione per il modello, senza template; per `decision` sono le instructions della domanda; null per `embedding` e `custom` |
-| model | text | id OpenRouter, es. `anthropic/claude-haiku-4.5`; per `custom` un nome libero che identifica il worker |
+| model | text | id del modello presso il provider del worker, es. `anthropic/claude-haiku-4.5` su OpenRouter o `qwen3:0.6b` su Ollama; per `custom` un nome libero che identifica il worker |
 | output_schema | jsonb | per `enum` la lista dei valori oppure un oggetto `{valore: descrizione}` (obbligatorio con `decision`, dove le descrizioni sono i criteri); per `boolean` con `decision` opzionale `{"true": ..., "false": ...}`; per `integer` e `numeric` con `decision` `{"levels": [2-10 descrizioni]}`; per `jsonb` il JSON schema; per `vector` `{"dimensions": 1024}`; per gli altri vincoli opzionali (min, max, max_length) |
 | backend_config | jsonb | parametri del backend: temperature per `llm`, batch size di chiamata per `embedding`, libero per `custom` |
 | created_at | timestamptz | |
@@ -91,7 +91,7 @@ Il lineage: ogni valore mai prodotto per una riga e colonna, da modello o da uma
 | is_current | boolean | uno solo per riga e colonna |
 | written | boolean | false se `hold` ha trattenuto il valore |
 | model | text | modello che ha risposto davvero (può differire dal richiesto per fallback del provider) |
-| usage | jsonb | token e costo riportati dal provider |
+| usage | jsonb | token e costo: il costo è quello riportato dal provider (OpenRouter) o calcolato dal worker dai prezzi per token della colonna |
 | latency_ms | integer | |
 | details | jsonb | extra del backend: per `decision` le probabilità per classe (`probabilities`), la probabilità del vero (`probability_true`), il punteggio grezzo e la legenda, `questions_in_call` quando la chiamata era condivisa con altre colonne |
 | created_at | timestamptz | |
@@ -106,7 +106,7 @@ La spesa per colonna e giorno UTC, alimentata da `bee.complete_job` per ogni `re
 |---|---|---|
 | column_def_id | bigint | FK, PK con `day` |
 | day | date | giorno UTC del risultato |
-| cost | numeric | somma di `usage.cost` riportato dal provider, in USD |
+| cost | numeric | somma di `usage.cost`, in USD |
 | results | bigint | risultati da modello contati |
 
 Non conta le chiamate fallite dopo essere state pagate (output fuori schema): la spesa reale può superare questa di poco.

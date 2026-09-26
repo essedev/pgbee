@@ -1,4 +1,10 @@
-"""Model providers. OpenRouter is the reference; the Protocol is what the worker depends on."""
+"""Model providers. The Protocol is what the worker depends on.
+
+OpenRouter is the reference: one key for most models, the cost of every call reported, and the
+decisions API behind the `decision` backend. Any other endpoint that speaks the OpenAI API
+(OpenAI, Azure OpenAI, Ollama, vLLM) works for `llm` and `embedding` with standard parameters
+only; its cost comes from the token prices declared in the column config.
+"""
 
 from __future__ import annotations
 
@@ -40,6 +46,9 @@ class EmbeddingResult:
 
 
 class Provider(Protocol):
+    backends: tuple[str, ...]
+    """The backends this provider can serve."""
+
     async def derive(self, job: Job) -> LlmResult: ...
 
     async def decide(self, jobs: list[Job]) -> list[LlmResult | ProviderError]:
@@ -151,36 +160,59 @@ def decision_answer(job: Job, answer: dict[str, Any]) -> tuple[Any, float | None
             raise ProviderError(f"unexpected output_type {job.output_type}", retryable=False)
 
 
-class OpenRouterProvider:
-    """OpenRouter via the OpenAI SDK for chat and embeddings, plain HTTP for decisions."""
+STANDARD_CHAT_PARAMS = (
+    "temperature",
+    "top_p",
+    "seed",
+    "max_tokens",
+    "max_completion_tokens",
+    "reasoning_effort",
+)
 
-    def __init__(self, api_key: str, base_url: str, timeout: float = 60.0) -> None:
-        headers = {"HTTP-Referer": "https://github.com/essedev/pgbee", "X-Title": "pgbee"}
+
+class OpenAICompatibleProvider:
+    """Any endpoint that speaks the OpenAI API: chat completions with a JSON schema response
+    and embeddings. Only standard parameters are sent, taken from backend_config by name."""
+
+    backends: tuple[str, ...] = ("llm", "embedding")
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        timeout: float = 60.0,
+        default_headers: dict[str, str] | None = None,
+    ) -> None:
         self._client = openai.AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,
             max_retries=0,
-            default_headers=headers,
+            default_headers=default_headers,
         )
-        self._decisions_url = base_url.rstrip("/").removesuffix("/v1") + "/alpha/decisions"
-        self._http = httpx.AsyncClient(
-            timeout=timeout,
-            headers={"Authorization": f"Bearer {api_key}", **headers},
-        )
+
+    def chat_options(self, job: Job) -> tuple[dict[str, Any], dict[str, Any]]:
+        """(params, extra_body) for one chat call, from the column's backend_config."""
+        config = job.backend_config
+        params = {k: config[k] for k in STANDARD_CHAT_PARAMS if k in config}
+        reasoning = config.get("reasoning")
+        if reasoning is not None:
+            # The OpenRouter spelling {"effort": "low"} maps to the standard reasoning_effort;
+            # the other OpenRouter reasoning options have no standard equivalent.
+            if not isinstance(reasoning, dict) or set(reasoning) - {"effort"}:
+                raise ProviderError(
+                    f"backend_config reasoning {reasoning!r} needs OpenRouter; with an"
+                    " OpenAI-compatible endpoint use reasoning_effort",
+                    retryable=False,
+                )
+            if "effort" in reasoning:
+                params.setdefault("reasoning_effort", reasoning["effort"])
+        return params, {}
 
     async def derive(self, job: Job) -> LlmResult:
         assert job.prompt is not None
+        params, extra_body = self.chat_options(job)
         started = time.monotonic()
-        params: dict[str, Any] = {}
-        if "temperature" in job.backend_config:
-            params["temperature"] = float(job.backend_config["temperature"])
-        if "max_tokens" in job.backend_config:
-            params["max_completion_tokens"] = int(job.backend_config["max_tokens"])
-        extra_body: dict[str, Any] = {"usage": {"include": True}}
-        if "reasoning" in job.backend_config:
-            # OpenRouter unified reasoning control, e.g. {"effort": "low"} or {"enabled": false}.
-            extra_body["reasoning"] = job.backend_config["reasoning"]
         response = await self._client.chat.completions.create(
             model=job.model,
             messages=[
@@ -195,7 +227,7 @@ class OpenRouterProvider:
                     "schema": response_schema(job.output_type, job.output_schema),
                 },
             },
-            extra_body=extra_body,
+            extra_body=extra_body or None,
             **params,
         )
         latency_ms = int((time.monotonic() - started) * 1000)
@@ -212,6 +244,57 @@ class OpenRouterProvider:
             usage=_usage_dict(response.usage),
             latency_ms=latency_ms,
         )
+
+    async def decide(self, jobs: list[Job]) -> list[LlmResult | ProviderError]:
+        raise ProviderError(
+            "the decision backend needs OpenRouter (decisions API); this worker is configured"
+            " for an OpenAI-compatible endpoint",
+            retryable=False,
+        )
+
+    async def embed(self, model: str, texts: list[str], config: dict[str, Any]) -> EmbeddingResult:
+        started = time.monotonic()
+        params: dict[str, Any] = {}
+        if "dimensions" in config:
+            params["dimensions"] = int(config["dimensions"])
+        response = await self._client.embeddings.create(
+            model=model, input=texts, encoding_format="float", **params
+        )
+        latency_ms = int((time.monotonic() - started) * 1000)
+        ordered = sorted(response.data, key=lambda d: d.index)
+        return EmbeddingResult(
+            vectors=[list(d.embedding) for d in ordered],
+            model=response.model or model,
+            usage=_usage_dict(response.usage),
+            latency_ms=latency_ms,
+        )
+
+
+class OpenRouterProvider(OpenAICompatibleProvider):
+    """OpenRouter: the OpenAI API plus reported cost and reasoning control, and the decisions
+    API (plain HTTP) for the decision backend."""
+
+    backends: tuple[str, ...] = ("llm", "decision", "embedding")
+
+    def __init__(self, api_key: str, base_url: str, timeout: float = 60.0) -> None:
+        headers = {"HTTP-Referer": "https://github.com/essedev/pgbee", "X-Title": "pgbee"}
+        super().__init__(api_key, base_url, timeout, default_headers=headers)
+        self._decisions_url = base_url.rstrip("/").removesuffix("/v1") + "/alpha/decisions"
+        self._http = httpx.AsyncClient(
+            timeout=timeout,
+            headers={"Authorization": f"Bearer {api_key}", **headers},
+        )
+
+    def chat_options(self, job: Job) -> tuple[dict[str, Any], dict[str, Any]]:
+        config = job.backend_config
+        params = {k: config[k] for k in STANDARD_CHAT_PARAMS if k in config}
+        if "max_tokens" in params:
+            params["max_completion_tokens"] = params.pop("max_tokens")
+        extra_body: dict[str, Any] = {"usage": {"include": True}}
+        if "reasoning" in config:
+            # OpenRouter unified reasoning control, e.g. {"effort": "low"} or {"enabled": false}.
+            extra_body["reasoning"] = config["reasoning"]
+        return params, extra_body
 
     async def decide(self, jobs: list[Job]) -> list[LlmResult | ProviderError]:
         """Typed questions to a decision model (TypeSafe Jev) via OpenRouter's decisions API.
@@ -268,23 +351,6 @@ class OpenRouterProvider:
                 )
             )
         return results
-
-    async def embed(self, model: str, texts: list[str], config: dict[str, Any]) -> EmbeddingResult:
-        started = time.monotonic()
-        params: dict[str, Any] = {}
-        if "dimensions" in config:
-            params["dimensions"] = int(config["dimensions"])
-        response = await self._client.embeddings.create(
-            model=model, input=texts, encoding_format="float", **params
-        )
-        latency_ms = int((time.monotonic() - started) * 1000)
-        ordered = sorted(response.data, key=lambda d: d.index)
-        return EmbeddingResult(
-            vectors=[list(d.embedding) for d in ordered],
-            model=response.model or model,
-            usage=_usage_dict(response.usage),
-            latency_ms=latency_ms,
-        )
 
 
 def _question_key(job: Job) -> str:

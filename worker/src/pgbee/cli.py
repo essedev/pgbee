@@ -17,7 +17,7 @@ from psycopg.rows import dict_row
 from pgbee import extension
 from pgbee.db import WORKER_BACKENDS, Contract
 from pgbee.installer import InstalledAsExtension, install
-from pgbee.providers import OpenRouterProvider
+from pgbee.providers import OpenAICompatibleProvider, OpenRouterProvider, Provider
 from pgbee.settings import Settings, load_settings
 from pgbee.worker import Worker, WorkerPool
 
@@ -103,30 +103,60 @@ def _spend(r: dict[str, Any]) -> str:
     return f"spent {spent} of ${r['budget_usd']} per {r['budget_period']}{flag}"
 
 
+OPENAI_DEFAULT_URL = "https://api.openai.com/v1"
+
+
+def build_provider(settings: Settings) -> Provider:
+    try:
+        kind = settings.provider_kind()
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if kind == "openrouter":
+        assert settings.openrouter_api_key is not None
+        return OpenRouterProvider(
+            settings.openrouter_api_key,
+            settings.openrouter_base_url,
+            timeout=settings.request_timeout_seconds,
+        )
+    # Local servers (Ollama, vLLM) take no key, but the SDK wants a non empty one.
+    return OpenAICompatibleProvider(
+        settings.openai_api_key or "not-needed",
+        settings.openai_base_url or OPENAI_DEFAULT_URL,
+        timeout=settings.request_timeout_seconds,
+    )
+
+
 @app.command("run")
 def run_cmd(
     once: bool = typer.Option(False, "--once", help="Process one batch and exit."),
     batch_size: int = typer.Option(20, "--batch-size", min=1),
     backends: str = typer.Option(
-        ",".join(WORKER_BACKENDS),
+        "",
         "--backends",
-        help="Comma separated backends this worker serves, one lane each.",
+        help="Comma separated backends this worker serves, one lane each. Default: all the"
+        f" provider supports ({','.join(WORKER_BACKENDS)} on OpenRouter).",
     ),
 ) -> None:
     """Consume the queue: call the models and write the results back."""
     settings = load_settings()
-    if not settings.openrouter_api_key:
-        raise typer.BadParameter("OPENROUTER_API_KEY is not set")
+    provider = build_provider(settings)
     _configure_logging(settings.log_level)
-    chosen = [b.strip() for b in backends.split(",") if b.strip()]
-    if not chosen or set(chosen) - set(WORKER_BACKENDS):
+    chosen = [b.strip() for b in backends.split(",") if b.strip()] or list(provider.backends)
+    if set(chosen) - set(WORKER_BACKENDS):
         raise typer.BadParameter(f"--backends takes a subset of {','.join(WORKER_BACKENDS)}")
-    asyncio.run(_run(settings, once=once, batch_size=batch_size, backends=chosen))
+    unsupported = set(chosen) - set(provider.backends)
+    if unsupported:
+        raise typer.BadParameter(
+            f"{','.join(sorted(unsupported))} not available with {settings.provider_kind()}:"
+            " the decision backend needs OpenRouter"
+        )
+    asyncio.run(_run(settings, provider, once=once, batch_size=batch_size, backends=chosen))
 
 
-async def _run(settings: Settings, *, once: bool, batch_size: int, backends: list[str]) -> None:
-    assert settings.openrouter_api_key is not None
-    provider = OpenRouterProvider(settings.openrouter_api_key, settings.openrouter_base_url)
+async def _run(
+    settings: Settings, provider: Provider, *, once: bool, batch_size: int, backends: list[str]
+) -> None:
+    structlog.get_logger("pgbee").info("provider", kind=settings.provider_kind(), backends=backends)
     options: dict[str, Any] = {
         "batch_size": batch_size,
         "poll_interval": settings.poll_interval_seconds,

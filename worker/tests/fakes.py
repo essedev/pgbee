@@ -17,6 +17,8 @@ URGENCY = json.dumps(["low", "medium", "high"])
 class FakeProvider:
     """Test double: derives by keyword, embeds by length. Records every call."""
 
+    backends: tuple[str, ...] = ("llm", "decision", "embedding")
+
     def __init__(self, fail_with: Exception | None = None) -> None:
         self.calls: list[Job] = []
         self.embed_calls: list[list[str]] = []

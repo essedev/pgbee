@@ -25,7 +25,7 @@ Calling a model from SQL is easy and many tools do it. The hard part, and the po
 
 ## Quickstart
 
-You need Docker and an [OpenRouter](https://openrouter.ai) key.
+You need Docker and an [OpenRouter](https://openrouter.ai) key (for OpenAI, Azure or a local model, see [Model providers](#model-providers)).
 
 ```bash
 git clone https://github.com/essedev/pgbee && cd pgbee
@@ -68,10 +68,10 @@ INSERT/UPDATE ──trigger──▶ bee.job (queue, same transaction)
 
 ## Backends and output types
 
-| Backend | What it does | Models (via OpenRouter) |
+| Backend | What it does | Models |
 |---|---|---|
-| `llm` | Structured output from a language model, with self-reported confidence | any chat model, e.g. `openai/gpt-6-luna` |
-| `decision` | Typed questions (choice, yes/no, rubric score) to a decision model, with class probabilities | `typesafe/jev-1.13` |
+| `llm` | Structured output from a language model, with self-reported confidence | any chat model with JSON schema output, e.g. `openai/gpt-6-luna` on OpenRouter |
+| `decision` | Typed questions (choice, yes/no, rubric score) to a decision model, with class probabilities | `typesafe/jev-1.13`, OpenRouter only |
 | `embedding` | One vector per row, batched | e.g. `openai/text-embedding-3-small` |
 | `custom` | Your own worker claims these jobs (`claim_jobs(..., array['custom'])`) | anything |
 
@@ -120,6 +120,7 @@ Parameters are named with a `p_` prefix, so named notation reads `p_prompt => '.
 | `max_attempts`, `backoff_base_seconds` | 5, 30 | Retries with exponential backoff. |
 | `backfill_chunk` | 1000 | Rows enqueued per backfill step. Declaring a column on a large table never locks it for long. |
 | `lineage_retention_days` | none | Superseded lineage older than this is pruned by the worker. Current values are never pruned. |
+| `input_usd_per_mtok`, `output_usd_per_mtok` | none | Token prices in USD per million, for providers that report no cost (OpenAI, Azure, local models). The worker prices each call with them, so spend and budgets work. A cost reported by the provider wins. |
 
 ### Views
 
@@ -142,7 +143,18 @@ pgbee status               # columns, queues, spend
 pgbee extension-files DIR  # files for CREATE EXTENSION pgbee
 ```
 
-Environment: `DATABASE_URL`, `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and optionally `PGBEE_WORKER_ID`, `PGBEE_POLL_INTERVAL_SECONDS`, `PGBEE_CLAIM_TIMEOUT_SECONDS`, `PGBEE_MAINTENANCE_INTERVAL_SECONDS`, `PGBEE_LOG_LEVEL`. Releases publish the worker as a Python package (`uvx pgbee`) and as Docker images on GHCR; from a clone, `make build` and `make worker-image` build them locally.
+Environment: `DATABASE_URL`, the provider variables below, and optionally `PGBEE_WORKER_ID`, `PGBEE_POLL_INTERVAL_SECONDS`, `PGBEE_CLAIM_TIMEOUT_SECONDS`, `PGBEE_REQUEST_TIMEOUT_SECONDS` (per model call, default 60), `PGBEE_MAINTENANCE_INTERVAL_SECONDS`, `PGBEE_LOG_LEVEL`. Releases publish the worker as a Python package (`uvx pgbee`) and as Docker images on GHCR; from a clone, `make build` and `make worker-image` build them locally.
+
+### Model providers
+
+The worker talks to one provider, picked from the environment:
+
+| Provider | Variables | Backends |
+|---|---|---|
+| [OpenRouter](https://openrouter.ai) (default) | `OPENROUTER_API_KEY`, optional `OPENROUTER_BASE_URL` | `llm`, `decision`, `embedding` |
+| Any OpenAI-compatible endpoint: OpenAI, Azure OpenAI (v1 endpoint), Ollama, vLLM | `OPENAI_API_KEY` and/or `OPENAI_BASE_URL` (default `https://api.openai.com/v1`) | `llm`, `embedding` |
+
+With both keys set OpenRouter wins; `PGBEE_PROVIDER=openai` or `openrouter` forces the choice. For a local model, `OPENAI_BASE_URL=http://localhost:11434/v1` (Ollama) is enough, no key needed. OpenRouter reports the cost of each call; the others report only tokens, so declare the prices in the column (`input_usd_per_mtok`, `output_usd_per_mtok`) if you want spend and budgets. With an OpenAI-compatible endpoint the worker sends only standard parameters from `p_backend_config` (`temperature`, `top_p`, `seed`, `max_tokens`, `max_completion_tokens`, `reasoning_effort`; `{"reasoning": {"effort": ...}}` is translated). The model id is the provider's own (`gpt-6-luna` on OpenAI, `qwen2.5:0.5b` on Ollama), and `llm` models need JSON schema output. A local server usually runs one request at a time: lower the column's `concurrency` and raise `PGBEE_REQUEST_TIMEOUT_SECONDS` so queued calls do not time out. To use both OpenRouter and a local model, run two workers with different `--backends` (for example `decision` on OpenRouter, `llm,embedding` local): a worker serves every column of the backends it claims, so two columns of the same backend cannot go to different providers.
 
 ## Installing on your database
 
@@ -160,7 +172,7 @@ Environment: `DATABASE_URL`, `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and op
 - **Prompt injection.** Row text is model input. A row can contain instructions that bias its own value. Values are validated against the declared type (an enum stays an enum), but not against intent. Jev's documentation lists this as a known weakness.
 - **Confidence is a signal, not a guarantee.** It separates doubtful rows well in our tests, but it is not calibrated for LLMs.
 - **Budgets are checked when jobs are claimed**, so a cap can be exceeded by one batch in flight. Calls that were paid for but returned an invalid answer are not counted.
-- **One provider in the reference worker:** OpenRouter, which gives access to most models with one key. `decision` uses OpenRouter's decisions API, still marked alpha. Another provider means a provider class in the worker or your own worker: the SQL contract does not depend on OpenRouter.
+- **One provider per worker process:** OpenRouter or one OpenAI-compatible endpoint (see [Model providers](#model-providers)). `decision` uses OpenRouter's decisions API, still marked alpha. Anything else means a provider class in the worker or your own worker: the SQL contract does not depend on any provider.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 

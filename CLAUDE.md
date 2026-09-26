@@ -2,12 +2,12 @@
 
 ## Cosa è
 
-Colonne derivate da modello per PostgreSQL: estensione in SQL puro (`sql/`) che possiede catalogo, coda, versioni, lineage e override; worker Python (`worker/`, pacchetto `pgbee`) che consuma la coda e chiama i modelli via OpenRouter; demo su ticket di assistenza (`demo/`). Il perché e i confini stanno in `docs/ARCHITECTURE.md`, il modello dati in `docs/DATABASE_SCHEMA.md`, le decisioni numerate in `docs/DECISIONS.md`.
+Colonne derivate da modello per PostgreSQL: estensione in SQL puro (`sql/`) che possiede catalogo, coda, versioni, lineage e override; worker Python (`worker/`, pacchetto `pgbee`) che consuma la coda e chiama i modelli via OpenRouter o un endpoint compatibile OpenAI; demo su ticket di assistenza (`demo/`). Il perché e i confini stanno in `docs/ARCHITECTURE.md`, il modello dati in `docs/DATABASE_SCHEMA.md`, le decisioni numerate in `docs/DECISIONS.md`.
 
 ## Stack
 
 - Estensione: SQL e PL/pgSQL, Postgres 15-18 (la CI in `.github/workflows/ci.yml` li prova tutti), nessun codice compilato. Schema `bee`.
-- Worker: Python 3.13 con `uv`, psycopg 3 async (niente ORM, niente Alembic: le migrazioni sono i file di `sql/`), SDK OpenAI puntato a OpenRouter, typer per la CLI, structlog.
+- Worker: Python 3.13 con `uv`, psycopg 3 async (niente ORM, niente Alembic: le migrazioni sono i file di `sql/`), SDK OpenAI puntato a OpenRouter o a un endpoint compatibile (`PGBEE_PROVIDER`), typer per la CLI, structlog.
 - Test: pytest su Postgres vero in Docker.
 - Porte (portsage): Postgres 4460, demo API 4461, demo web 4462, container usa e getta di `make test-extension` 4463.
 

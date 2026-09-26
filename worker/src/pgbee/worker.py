@@ -214,12 +214,13 @@ class Worker:
                 await self._complete(job, result, stats)
 
     async def _complete(self, job: Job, result: LlmResult, stats: BatchStats) -> None:
+        usage = priced(result.usage, job.config)
         outcome = await self._db.complete(
             job,
             result.value,
             confidence=result.confidence,
             model=result.model,
-            usage=result.usage,
+            usage=usage,
             latency_ms=result.latency_ms,
             details=result.details,
         )
@@ -231,7 +232,7 @@ class Worker:
             outcome=outcome,
             confidence=result.confidence,
             latency_ms=result.latency_ms,
-            **{f"usage_{k}": v for k, v in result.usage.items()},
+            **{f"usage_{k}": v for k, v in usage.items()},
         )
 
     async def _run_embedding(self, jobs: list[Job], stats: BatchStats) -> None:
@@ -256,7 +257,7 @@ class Worker:
                 vector,
                 confidence=None,
                 model=result.model,
-                usage=usage,
+                usage=priced(usage, job.config),
                 latency_ms=per_job_latency,
             )
             stats.outcomes[outcome] += 1
@@ -353,14 +354,34 @@ def fan_out(jobs: list[Job]) -> list[list[Job]]:
     ]
 
 
-def _split_usage(usage: dict[str, object], n: int) -> dict[str, object]:
+def _split_usage(usage: dict[str, Any], n: int) -> dict[str, Any]:
     """Spread a batch usage over its jobs so per-column cost sums stay right."""
     if not usage or n <= 0:
         return {}
-    out: dict[str, object] = {}
+    out: dict[str, Any] = {}
     for key, value in usage.items():
         if isinstance(value, int | float):
             out[key] = value / n
         else:
             out[key] = value
     return out
+
+
+def priced(usage: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+    """Add the cost from the column's token prices when the provider did not report one.
+
+    OpenRouter reports the cost of each call and that figure wins; OpenAI-compatible endpoints
+    report only tokens, priced with input_usd_per_mtok and output_usd_per_mtok.
+    """
+    if "cost" in usage:
+        return usage
+    input_price = config.get("input_usd_per_mtok")
+    output_price = config.get("output_usd_per_mtok")
+    if input_price is None and output_price is None:
+        return usage
+    prompt_tokens = float(usage.get("prompt_tokens") or 0)
+    completion_tokens = float(usage.get("completion_tokens") or 0)
+    cost = (
+        prompt_tokens * float(input_price or 0) + completion_tokens * float(output_price or 0)
+    ) / 1e6
+    return {**usage, "cost": cost}
