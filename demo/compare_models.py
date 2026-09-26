@@ -34,7 +34,7 @@ COLUMNS = ("urgency", "category")
 CANDIDATES: list[tuple[str, dict[str, Any]]] = [
     ("deepseek/deepseek-v4.1-flash", {"reasoning": {"enabled": False}}),
     ("google/gemini-3.7-flash", {"reasoning": {"effort": "low"}}),
-    ("z-ai/glm-5.3-flash", {"reasoning": {"enabled": False}}),
+    ("z-ai/glm-5.3-flash", {"reasoning": {"effort": "low"}}),
     ("xiaomi/mimo-v2.6-pro", {"reasoning": {"enabled": False}}),
     ("openai/gpt-6-luna", {"reasoning": {"effort": "low"}}),
     ("mistralai/ministral-14b-2512", {}),
@@ -50,7 +50,8 @@ def load_gold() -> dict[str, dict[str, set[str]]]:
     return gold
 
 
-async def drain(worker: Worker) -> int:
+async def drain(worker: Worker, conn: psycopg.Connection[DictRow]) -> int:
+    """Run batches until the queue is empty, waiting out jobs in backoff (a few seconds at most)."""
     total = 0
     while True:
         stats = await worker.run_once()
@@ -58,8 +59,14 @@ async def drain(worker: Worker) -> int:
         if stats.rate_limited:
             await asyncio.sleep(5)
             continue
-        if stats.claimed == 0:
+        if stats.claimed:
+            continue
+        waiting = conn.execute(
+            "SELECT extract(epoch FROM min(next_attempt_at) - now()) AS s FROM ai.job WHERE status = 'pending'"
+        ).fetchone()
+        if waiting is None or waiting["s"] is None:
             return total
+        await asyncio.sleep(min(max(float(waiting["s"]), 0.5), 90))
 
 
 def new_version(
@@ -76,18 +83,11 @@ def new_version(
         if "nothing changed" not in str(exc):
             raise
         row = conn.execute(
-            "SELECT current_version_id AS v FROM ai.column_def WHERE table_name = 'ticket' AND column_name = %s AND deleted_at IS NULL",
+            "SELECT id, current_version_id AS v FROM ai.column_def WHERE table_name = 'ticket' AND column_name = %s AND deleted_at IS NULL",
             (column,),
         ).fetchone()
         assert row is not None
-        conn.execute(
-            "SELECT ai.backfill(%s)",
-            (
-                conn.execute(
-                    "SELECT id FROM ai.columns WHERE column_name = %s", (column,)
-                ).fetchone()["id"],
-            ),
-        )  # type: ignore[index]
+        conn.execute("SELECT ai.backfill(%s)", (row["id"],))
         return int(row["v"])
 
 
@@ -143,7 +143,7 @@ async def run(models: list[tuple[str, dict[str, Any]]]) -> None:
     for model, cfg in models:
         print(f"\n== {model} {cfg or ''}")
         versions = {c: new_version(conn, c, model, cfg) for c in COLUMNS}
-        n = await drain(worker)
+        n = await drain(worker, conn)
         print(f"  {n} job elaborati")
         for c in COLUMNS:
             s = score(conn, c, versions[c], gold[c])

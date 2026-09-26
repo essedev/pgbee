@@ -118,7 +118,7 @@ class OpenRouterProvider:
         )
         latency_ms = int((time.monotonic() - started) * 1000)
         content = response.choices[0].message.content or ""
-        payload = json.loads(content)
+        payload = parse_json_object(content)
         try:
             value, confidence = validate_response(job.output_type, job.output_schema, payload)
         except Exception as exc:
@@ -147,6 +147,17 @@ class OpenRouterProvider:
             usage=_usage_dict(response.usage),
             latency_ms=latency_ms,
         )
+
+
+def parse_json_object(text: str) -> Any:
+    """Parse the first JSON value in the text, tolerating trailing junk some models append."""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`")
+        if stripped.startswith("json"):
+            stripped = stripped[4:]
+    value, _end = json.JSONDecoder().raw_decode(stripped.lstrip())
+    return value
 
 
 def _usage_dict(usage: Any) -> dict[str, Any]:

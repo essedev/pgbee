@@ -250,6 +250,25 @@ def test_update_column_recomputes_only_stale_rows(
         )
 
 
+def test_update_column_resets_backoff_of_pending_jobs(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn, backoff_base_seconds=600)
+    job = claim(conn, 1)[0]
+    conn.execute("SELECT ai.fail_job(%s, 'model returned invalid JSON', true)", (job["job_id"],))
+    waiting = jobs(conn, "pending")
+    assert waiting[0]["attempts"] == 1 and waiting[0]["last_error"] is not None
+    assert claim(conn, 1)[0]["job_id"] != job["job_id"]
+    conn.execute(
+        "SELECT ai.update_column('ticket', 'urgency', p_model => 'anthropic/claude-sonnet-4.5')"
+    )
+    row = conn.execute(
+        "SELECT attempts, last_error, next_attempt_at <= now() AS ready FROM ai.job WHERE id = %s",
+        (job["job_id"],),
+    ).fetchone()
+    assert row == {"attempts": 0, "last_error": None, "ready": True}
+
+
 def test_human_override_pins_the_row(conn: psycopg.Connection[DictRow], ticket: str) -> None:
     add_urgency(conn)
     for job in claim(conn):

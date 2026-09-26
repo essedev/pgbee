@@ -14,7 +14,13 @@ from psycopg.rows import DictRow
 
 from aicol.db import Contract
 from aicol.jobs import Job
-from aicol.providers import EmbeddingResult, LlmResult, ProviderError, classify
+from aicol.providers import (
+    EmbeddingResult,
+    LlmResult,
+    ProviderError,
+    classify,
+    parse_json_object,
+)
 from aicol.schema import response_schema, validate_response
 from aicol.worker import Worker
 
@@ -224,3 +230,20 @@ def test_source_text_rendering() -> None:
         job({"title": "T", "tags": ["a", "b"], "n": None}).source_text()
         == 'title: T\ntags: ["a", "b"]\nn: '
     )
+
+
+def test_parse_json_object_tolerates_trailing_text_and_fences() -> None:
+    assert parse_json_object('{"value": "low", "confidence": 0.9}') == {
+        "value": "low",
+        "confidence": 0.9,
+    }
+    assert parse_json_object('{"value": "low", "confidence": 0.9}\n\nHope this helps!') == {
+        "value": "low",
+        "confidence": 0.9,
+    }
+    assert parse_json_object('```json\n{"value": 1, "confidence": 1}\n```') == {
+        "value": 1,
+        "confidence": 1,
+    }
+    with pytest.raises(json.JSONDecodeError):
+        parse_json_object("not json at all")

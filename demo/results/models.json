@@ -1,0 +1,219 @@
+[
+  {
+    "column": "urgency",
+    "answered": 21,
+    "accuracy": 0.9523809523809523,
+    "misses": [
+      "19:medium≠high"
+    ],
+    "cost": 0.00103184,
+    "latency_ms": 823,
+    "completion_tokens": 313,
+    "dead": 0,
+    "model": "deepseek/deepseek-v4.1-flash"
+  },
+  {
+    "column": "category",
+    "answered": 21,
+    "accuracy": 1.0,
+    "misses": [],
+    "cost": 0.00111905933,
+    "latency_ms": 860,
+    "completion_tokens": 339,
+    "dead": 0,
+    "model": "deepseek/deepseek-v4.1-flash"
+  },
+  {
+    "column": "urgency",
+    "answered": 21,
+    "accuracy": 0.9523809523809523,
+    "misses": [
+      "14:low≠high/medium"
+    ],
+    "cost": 0.01403175,
+    "latency_ms": 2332,
+    "completion_tokens": 2501,
+    "dead": 0,
+    "model": "google/gemini-3.7-flash"
+  },
+  {
+    "column": "category",
+    "answered": 21,
+    "accuracy": 1.0,
+    "misses": [],
+    "cost": 0.01285725,
+    "latency_ms": 2163,
+    "completion_tokens": 2129,
+    "dead": 0,
+    "model": "google/gemini-3.7-flash"
+  },
+  {
+    "column": "urgency",
+    "answered": 0,
+    "accuracy": 0.0,
+    "misses": [
+      "1:∅≠high",
+      "2:∅≠low",
+      "3:∅≠low",
+      "4:∅≠low/medium",
+      "5:∅≠medium",
+      "6:∅≠low",
+      "7:∅≠high/medium",
+      "8:∅≠low",
+      "9:∅≠high/medium",
+      "10:∅≠low",
+      "11:∅≠high",
+      "12:∅≠low",
+      "13:∅≠high/medium",
+      "14:∅≠high/medium",
+      "15:∅≠low",
+      "16:∅≠low/medium",
+      "17:∅≠low/medium",
+      "18:∅≠low",
+      "19:∅≠high",
+      "20:∅≠high/medium",
+      "21:∅≠high"
+    ],
+    "cost": 0.0,
+    "latency_ms": null,
+    "completion_tokens": null,
+    "dead": 21,
+    "model": "z-ai/glm-5.3-flash"
+  },
+  {
+    "column": "category",
+    "answered": 0,
+    "accuracy": 0.0,
+    "misses": [
+      "1:∅≠tecnico",
+      "2:∅≠fatturazione",
+      "3:∅≠altro/tecnico",
+      "4:∅≠fatturazione",
+      "5:∅≠tecnico",
+      "6:∅≠account",
+      "7:∅≠tecnico",
+      "8:∅≠commerciale",
+      "9:∅≠account",
+      "10:∅≠altro",
+      "11:∅≠fatturazione/tecnico",
+      "12:∅≠account/commerciale",
+      "13:∅≠tecnico",
+      "14:∅≠account/fatturazione",
+      "15:∅≠fatturazione",
+      "16:∅≠tecnico",
+      "17:∅≠fatturazione",
+      "18:∅≠commerciale",
+      "19:∅≠tecnico",
+      "20:∅≠account",
+      "21:∅≠tecnico"
+    ],
+    "cost": 0.0,
+    "latency_ms": null,
+    "completion_tokens": null,
+    "dead": 21,
+    "model": "z-ai/glm-5.3-flash"
+  },
+  {
+    "column": "urgency",
+    "answered": 20,
+    "accuracy": 0.9523809523809523,
+    "misses": [
+      "15:∅≠low"
+    ],
+    "cost": 0.0010495308,
+    "latency_ms": 2730,
+    "completion_tokens": 330,
+    "dead": 0,
+    "model": "xiaomi/mimo-v2.6-pro"
+  },
+  {
+    "column": "category",
+    "answered": 21,
+    "accuracy": 0.9523809523809523,
+    "misses": [
+      "3:commerciale≠altro/tecnico"
+    ],
+    "cost": 0.0013040566,
+    "latency_ms": 2940,
+    "completion_tokens": 372,
+    "dead": 0,
+    "model": "xiaomi/mimo-v2.6-pro"
+  },
+  {
+    "column": "urgency",
+    "answered": 20,
+    "accuracy": 0.9523809523809523,
+    "misses": [
+      "15:∅≠low"
+    ],
+    "cost": 0.0009433,
+    "latency_ms": 1802,
+    "completion_tokens": 930,
+    "dead": 0,
+    "model": "openai/gpt-6-luna"
+  },
+  {
+    "column": "category",
+    "answered": 21,
+    "accuracy": 1.0,
+    "misses": [],
+    "cost": 0.0008219,
+    "latency_ms": 1379,
+    "completion_tokens": 578,
+    "dead": 0,
+    "model": "openai/gpt-6-luna"
+  },
+  {
+    "column": "urgency",
+    "answered": 20,
+    "accuracy": 0.9047619047619048,
+    "misses": [
+      "2:high≠low",
+      "15:∅≠low"
+    ],
+    "cost": 0.00031084,
+    "latency_ms": 587,
+    "completion_tokens": 327,
+    "dead": 0,
+    "model": "mistralai/ministral-14b-2512"
+  },
+  {
+    "column": "category",
+    "answered": 21,
+    "accuracy": 0.9523809523809523,
+    "misses": [
+      "10:commerciale≠altro"
+    ],
+    "cost": 0.0004208,
+    "latency_ms": 722,
+    "completion_tokens": 452,
+    "dead": 0,
+    "model": "mistralai/ministral-14b-2512"
+  },
+  {
+    "column": "urgency",
+    "answered": 20,
+    "accuracy": 0.9523809523809523,
+    "misses": [
+      "15:∅≠low"
+    ],
+    "cost": 0.009922,
+    "latency_ms": 1219,
+    "completion_tokens": 340,
+    "dead": 0,
+    "model": "anthropic/claude-haiku-4.5"
+  },
+  {
+    "column": "category",
+    "answered": 21,
+    "accuracy": 0.9523809523809523,
+    "misses": [
+      "10:commerciale≠altro"
+    ],
+    "cost": 0.01087,
+    "latency_ms": 1249,
+    "completion_tokens": 378,
+    "dead": 0,
+    "model": "anthropic/claude-haiku-4.5"
+  }
+]

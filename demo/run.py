@@ -124,7 +124,7 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
         )
 
 
-async def drain(worker: Worker, label: str) -> None:
+async def drain(worker: Worker, conn: psycopg.Connection[DictRow], label: str) -> None:
     total = 0
     while True:
         stats = await worker.run_once()
@@ -132,8 +132,14 @@ async def drain(worker: Worker, label: str) -> None:
         if stats.rate_limited:
             await asyncio.sleep(5)
             continue
-        if stats.claimed == 0:
+        if stats.claimed:
+            continue
+        waiting = conn.execute(
+            "SELECT extract(epoch FROM min(next_attempt_at) - now()) AS s FROM ai.job WHERE status = 'pending'"
+        ).fetchone()
+        if waiting is None or waiting["s"] is None:
             break
+        await asyncio.sleep(min(max(float(waiting["s"]), 0.5), 90))
     print(f"  worker: {label}, {total} job elaborati")
 
 
@@ -216,7 +222,7 @@ async def run(args: argparse.Namespace) -> None:
     worker = Worker(contract, provider, worker_id="demo", batch_size=40)
 
     say("3. Il worker svuota la coda")
-    await drain(worker, "primo passaggio")
+    await drain(worker, conn, "primo passaggio")
     show(
         conn,
         "SELECT id, urgency, category, left(summary, 60) AS summary FROM ticket ORDER BY id",
@@ -238,7 +244,7 @@ async def run(args: argparse.Namespace) -> None:
         " 'Il POS virtuale rifiuta tutte le carte da mezz''ora, in negozio c''è la fila')"
     )
     show(conn, "SELECT id, status, column_def_id FROM ai.job WHERE status = 'pending' ORDER BY id")
-    await drain(worker, "ticket nuovo")
+    await drain(worker, conn, "ticket nuovo")
     show(conn, "SELECT id, urgency, category, summary FROM ticket WHERE id = 21")
 
     say("5. Un operatore corregge a mano: il valore resta, il modello non lo tocca più")
@@ -261,7 +267,7 @@ async def run(args: argparse.Namespace) -> None:
         conn,
         "SELECT column_name, version, stale, pending, human_overrides FROM ai.columns WHERE column_name = 'urgency'",
     )
-    await drain(worker, "ricalcolo selettivo")
+    await drain(worker, conn, "ricalcolo selettivo")
     show(
         conn,
         "SELECT t.id, t.urgency, r.column_version_id AS ver, r.source FROM ticket t"
