@@ -26,7 +26,7 @@ Una colonna derivata dichiarata. La configurazione che cambia il risultato (prom
 | source_columns | text[] | colonne che alimentano il modello |
 | output_type | ai.output_type | `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector` |
 | current_version_id | bigint | FK `column_version`, nullable solo durante la creazione |
-| config | jsonb | `batch_size`, `max_attempts`, `backoff_base_seconds`, `confidence_threshold`, `low_confidence_policy` (`write`/`hold`), `override_policy` (`pin`/`until_source_change`), `concurrency` |
+| config | jsonb | `batch_size`, `max_attempts`, `backoff_base_seconds`, `confidence_threshold`, `low_confidence_policy` (`write`/`hold`), `override_policy` (`pin`/`until_source_change`), `concurrency`, `budget_usd` (numero in USD, null senza tetto), `budget_period` (`day`/`month`/`total`, default `month`). Validato da un trigger su insert e update |
 | enabled | boolean | disabilitata: i trigger restano ma non accodano |
 | created_at, updated_at, deleted_at | timestamptz | |
 
@@ -94,6 +94,19 @@ Il lineage: ogni valore mai prodotto per una riga e colonna, da modello o da uma
 
 Unique parziale su `(column_def_id, row_pk) WHERE is_current`. Indice su `(column_def_id, column_version_id)` per trovare le righe stale.
 
+### spend
+
+La spesa per colonna e giorno UTC, alimentata da un trigger su ogni `result` da modello (anche quelli scartati perché la riga era cambiata: sono stati pagati). Resta anche quando il lineage verrà potato.
+
+| Campo | Tipo | Note |
+|---|---|---|
+| column_def_id | bigint | FK, PK con `day` |
+| day | date | giorno UTC del risultato |
+| cost | numeric | somma di `usage.cost` riportato dal provider, in USD |
+| results | bigint | risultati da modello contati |
+
+Non conta le chiamate fallite dopo essere state pagate (output fuori schema): la spesa reale può superare questa di poco.
+
 ### schema_version
 
 | Campo | Tipo | Note |
@@ -108,18 +121,19 @@ Unique parziale su `(column_def_id, row_pk) WHERE is_current`. Indice su `(colum
 - `ai.needs_review`: risultati correnti da modello con `confidence < confidence_threshold`.
 - `ai.dead_jobs`: job esauriti con ultimo errore.
 - `ai.cost_by_column`: somma di token e costo per definizione e versione.
+- `ai.budgets`: per definizione il tetto, il periodo, lo speso nel periodo corrente e in totale, il residuo e `exhausted`.
 
 ## Funzioni pubbliche
 
-Gestione: `ai.add_column`, `ai.update_column` (nuova versione), `ai.configure` (policy senza versione), `ai.drop_column`, `ai.enable`, `ai.disable`, `ai.backfill`, `ai.unpin`, `ai.retry_dead`, `ai.prune_jobs`. Ogni funzione ha un `COMMENT` leggibile con `\df+ ai.*`.
+Gestione: `ai.add_column`, `ai.update_column` (nuova versione), `ai.configure` (policy senza versione), `ai.drop_column`, `ai.enable`, `ai.disable`, `ai.backfill`, `ai.unpin`, `ai.retry_dead`, `ai.prune_jobs`, `ai.spent(def_id, period)`. Ogni funzione ha un `COMMENT` leggibile con `\df+ ai.*`.
 
-Contratto worker: `ai.claim_jobs(worker_id, batch_size, backends[])`, `ai.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms, details)` che restituisce `ai.complete_outcome` (`written`, `held`, `stale_requeued`, `cancelled`), `ai.fail_job(job_id, error, retryable)` che restituisce lo stato risultante, `ai.reclaim_stale(timeout)`. Canale `NOTIFY ai_jobs` con l'id della definizione a ogni accodamento.
+Contratto worker: `ai.claim_jobs(worker_id, batch_size, backends[])`, `ai.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms, details)` che restituisce `ai.complete_outcome` (`written`, `held`, `stale_requeued`, `cancelled`), `ai.fail_job(job_id, error, retryable)` che restituisce lo stato risultante, `ai.reclaim_stale(timeout)`. `claim_jobs` salta le definizioni con budget esaurito. Canale `NOTIFY ai_jobs` con l'id della definizione a ogni accodamento e a ogni `ai.configure` (alzare un budget sveglia subito i worker).
 
 Trigger per tabella utente: `ai_enqueue_<column>` (AFTER INSERT OR UPDATE OF sorgenti) e `ai_override_<column>` (AFTER UPDATE OF target). Il secondo ignora le scritture fatte dentro `complete_job` (GUC `ai.writer = 'worker'`); un UPDATE a NULL fatto a mano toglie il pin e riaccoda la riga.
 
 ## Relazioni
 
-`column_def` 1-N `column_version`; `column_def` 1-N `job`; `column_def` 1-N `result`; `column_version` 1-N `result`. Le tabelle dell'utente non hanno FK verso lo schema `ai`: il legame è per `row_pk`, e la cancellazione di una riga utente lascia il lineage orfano di proposito (storia).
+`column_def` 1-N `column_version`; `column_def` 1-N `job`; `column_def` 1-N `result`; `column_version` 1-N `result`; `column_def` 1-N `spend`. Le tabelle dell'utente non hanno FK verso lo schema `ai`: il legame è per `row_pk`, e la cancellazione di una riga utente lascia il lineage orfano di proposito (storia).
 
 ## Migrazioni
 

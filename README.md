@@ -2,7 +2,7 @@
 
 Derived columns for PostgreSQL, computed by a model and maintained by the database.
 
-Declare once that `ticket.urgency` is derived from `ticket.body` with a prompt and a model. From then on every new or changed row gets its value: transactional queue, batching, retries, prompt and model versioning, per-row lineage, confidence, and human overrides that stick. The database owns the guarantee; an external worker makes the model calls. The model is one backend, not the product.
+Declare once that `ticket.urgency` is derived from `ticket.body` with a prompt and a model. From then on every new or changed row gets its value: transactional queue, batching, retries, prompt and model versioning, per-row lineage, confidence, human overrides that stick, and a spending cap per column. The database owns the guarantee; an external worker makes the model calls. The model is one backend, not the product.
 
 Status: experiment. See `docs/ANALYSIS.md` for the reasoning and the exit criterion.
 

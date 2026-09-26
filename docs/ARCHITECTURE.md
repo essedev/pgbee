@@ -22,6 +22,10 @@ Il progetto aggiunge a PostgreSQL le colonne derivate da modello: l'utente dichi
 
 `ai.update_column(...)` crea una nuova riga in `ai.column_version` e la rende corrente. I risultati esistenti puntano alla versione con cui sono stati calcolati, quindi lo stato "stale" non è una colonna da mantenere: è la differenza tra versione corrente e versione del risultato. La funzione accoda un job per ogni riga con risultato non corrente o assente, saltando le righe con valore umano. Il ricalcolo è incrementale per costruzione.
 
+## Tetto di spesa
+
+`budget_usd` nella config di una definizione (con `budget_period` `day`, `month` o `total`) limita quanto quella colonna può spendere. Un trigger su `ai.result` somma `usage.cost` in `ai.spend` per giorno UTC; `ai.claim_jobs` valuta il budget una volta per definizione e salta quelle esaurite, i cui job restano `pending` finché il periodo non si rinnova o `ai.configure` alza il tetto (e sveglia i worker con una `NOTIFY`). Il controllo avviene al claim, quindi lo sforamento massimo è un batch già in volo per worker. Default: nessun tetto (decisione #13). `aicol status` e la vista `ai.budgets` mostrano speso e residuo.
+
 ## Override umano
 
 Un `UPDATE ticket SET urgency = 'low'` fuori dal guard del worker scatta il trigger di override: inserisce un risultato con `source = 'human'`, lo marca corrente, cancella i job vivi per quella riga. Da lì la riga è pinnata: né il cambio prompt né il cambio delle sorgenti la ricalcolano, salvo policy `until_source_change` sulla definizione. `ai.unpin(table, column, pk)` toglie il pin e riaccoda; lo stesso effetto si ottiene con un `UPDATE` che mette la colonna a NULL, il gesto naturale per dire "ricalcola". L'insieme degli override umani è anche la base dei few-shot futuri (vedi ROADMAP).

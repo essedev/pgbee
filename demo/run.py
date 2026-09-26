@@ -78,7 +78,7 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
     conn.execute(
         "SELECT ai.add_column('ticket', 'urgency', array['body'], 'enum',"
         " p_prompt => %s, p_model => %s, p_output_schema => %s::jsonb, p_backend_config => %s,"
-        " p_config => '{\"confidence_threshold\": 0.75}')",
+        ' p_config => \'{"confidence_threshold": 0.75, "budget_usd": 0.05}\')',
         (
             "Classifica l'urgenza del ticket di assistenza. high: il negozio non vende o c'è un "
             "problema di privacy o denaro. medium: un malfunzionamento che non blocca le vendite. "
@@ -169,6 +169,11 @@ def cost_report(conn: psycopg.Connection[DictRow]) -> None:
         conn,
         "SELECT column_name, column_version_id AS ver, model, results, prompt_tokens, completion_tokens,"
         " round(cost, 5) AS cost_usd, avg_latency_ms FROM ai.cost_by_column ORDER BY column_name, ver",
+    )
+    show(
+        conn,
+        "SELECT column_name, budget_usd, budget_period, round(spent_usd, 5) AS spent_usd, exhausted"
+        " FROM ai.budgets ORDER BY column_name",
     )
     total = conn.execute("SELECT coalesce(sum(cost), 0) AS c FROM ai.cost_by_column").fetchone()
     assert total is not None

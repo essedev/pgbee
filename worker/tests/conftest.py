@@ -54,6 +54,7 @@ def _reset(c: psycopg.Connection[DictRow]) -> None:
     for t in tables:
         c.execute(f'DROP TABLE IF EXISTS public."{t["tablename"]}" CASCADE')
     c.execute("DELETE FROM ai.job")
+    c.execute("DELETE FROM ai.spend")
     c.execute("DELETE FROM ai.result")
     c.execute("UPDATE ai.column_def SET current_version_id = NULL")
     c.execute("DELETE FROM ai.column_version")

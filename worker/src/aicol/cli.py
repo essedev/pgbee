@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+from typing import Any
 
 import psycopg
 import structlog
@@ -52,9 +53,11 @@ def status_cmd() -> None:
     settings = load_settings()
     with psycopg.connect(settings.database_url, row_factory=dict_row) as conn:
         rows = conn.execute(
-            "SELECT table_schema, table_name, column_name, version, backend, model, enabled,"
-            " pending, claimed, done, dead, stale, human_overrides"
-            " FROM ai.columns ORDER BY table_schema, table_name, column_name"
+            "SELECT c.table_schema, c.table_name, c.column_name, c.version, c.backend, c.model,"
+            " c.enabled, c.pending, c.claimed, c.done, c.dead, c.stale, c.human_overrides,"
+            " b.budget_usd, b.budget_period, b.spent_usd, b.exhausted"
+            " FROM ai.columns c JOIN ai.budgets b ON b.column_def_id = c.id"
+            " ORDER BY c.table_schema, c.table_name, c.column_name"
         ).fetchall()
     if not rows:
         typer.echo("no derived columns")
@@ -66,7 +69,16 @@ def status_cmd() -> None:
             f"  v{r['version']} {r['backend']} {r['model']} [{state}]"
             f"  pending={r['pending']} claimed={r['claimed']} done={r['done']} dead={r['dead']}"
             f" stale={r['stale']} human={r['human_overrides']}"
+            f"  {_spend(r)}"
         )
+
+
+def _spend(r: dict[str, Any]) -> str:
+    spent = f"${r['spent_usd']:.4f}"
+    if r["budget_usd"] is None:
+        return f"spent {spent} this {r['budget_period']}, no cap"
+    flag = " EXHAUSTED" if r["exhausted"] else ""
+    return f"spent {spent} of ${r['budget_usd']} per {r['budget_period']}{flag}"
 
 
 @app.command("run")
