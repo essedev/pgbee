@@ -2,18 +2,9 @@
 
 ## Stato corrente
 
-Estensione, worker e demo girano end to end contro OpenRouter, con quattro backend (`llm`, `decision`, `embedding`, `custom`), tetto di spesa per colonna, backfill a chunk che regge tabelle da milioni di righe, worker con privilegi minimi, retention del lineage, packaging (wheel con i file SQL, `CREATE EXTENSION pgbee`, immagini Docker) e un ciclo di lavoro per backend. Provati sul campo su 3000 reclami reali CFPB: 12.000 job senza errori per 0.41 USD. Una review esterna ha trovato un bug di lineage sui cambi di versione, corretto nello 0011. Licenza Apache-2.0, CI verde su Postgres 15-18, rilascio automatico su tag, avvio rapido con `docker compose up`, README e `SECURITY.md` per chi arriva da fuori, logo e mascotte in `assets/brand/`. Il repository `essedev/pgbee` esiste su GitHub, privato, con `main` pushato (cicli 1-8 in `CYCLES.md`, risultati in `ANALYSIS.md`).
+Estensione, worker e demo girano end to end contro OpenRouter o un endpoint compatibile OpenAI, con quattro backend (`llm`, `decision`, `embedding`, `custom`), tetto di spesa per colonna, backfill a chunk che regge tabelle da milioni di righe, worker con privilegi minimi, retention del lineage, packaging (wheel con i file SQL, `CREATE EXTENSION pgbee`, immagini Docker) e un ciclo di lavoro per backend. Provati sul campo su 3000 reclami reali CFPB: 12.000 job senza errori per 0.41 USD. Una review esterna ha trovato un bug di lineage sui cambi di versione, corretto nello 0011. Licenza Apache-2.0, CI verde su Postgres 15-18, rilascio automatico su tag, avvio rapido con `docker compose up`, README e `SECURITY.md` per chi arriva da fuori, logo e mascotte in `assets/brand/`. Il repository `essedev/pgbee` esiste su GitHub, privato. Pronto per il lancio (ciclo 9): prova sotto guasti contro due progetti nel codice applicativo in `bench/failure/` (ha trovato un deadlock fra applicazione e `complete_job`, corretto nello 0014), provider compatibile OpenAI con prezzi per token (provato su Ollama), `pgbee run --drain` per cron e serverless, benchmark ripetibili in `bench/`. Cicli 1-9 in `CYCLES.md`, risultati in `ANALYSIS.md` e `bench/README.md`.
 
-## Milestone corrente: pronto per il lancio
-
-In quest'ordine; il primo punto può cambiare come presentiamo il progetto.
-
-- [ ] Prova sotto guasti, pgbee contro l'approccio tipico nel codice applicativo (salva la riga, poi manda in coda): stesse righe, modello finto, crash dei processi, prompt cambiato a metà, scritture da script esterni. Si contano righe rimaste senza valore, valori vecchi creduti nuovi, correzioni umane sovrascritte. È la dimostrazione del perché lo stato sta nel database. Costo zero.
-- [ ] Provider generico compatibile OpenAI (OpenAI, Azure, modelli locali con Ollama o vLLM): solo parametri standard, costo calcolato da un prezzo per milione di token dichiarato nella colonna, budget anche in token per i modelli locali. `decision` resta su OpenRouter, perché Jev esiste solo lì.
-- [ ] Modalità cron nel README: `pgbee run --once` da uno scheduler, per chi non può tenere un worker acceso (serverless).
-- [ ] Script dei benchmark nel repository (`bench/`): backfill su 1M righe, caricamenti massivi, un ciclo per backend. Oggi stanno fuori dal repo e nessuno può rifare le misure.
-
-## Milestone successiva: pubblicazione 0.1.0
+## Milestone corrente: pubblicazione 0.1.0
 
 - [ ] Trusted publisher su PyPI per il progetto `pgbee`: repository `essedev/pgbee`, workflow `release.yml`, environment `pypi` (Simone, richiede il suo account).
 - [ ] Anteprima social del repository: `assets/brand/png/pgbee-social.png` in Settings, Social preview (Simone).

@@ -126,3 +126,19 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 **Decisioni.** #21 (Apache-2.0, progetto personale su `essedev`); #9 aggiornata con la divisione delle lingue.
 
 **Prossimo passo.** I passi di pubblicazione che restano all'autore, in `ROADMAP.md`: repo GitHub, push, publisher PyPI, segnalazioni private, tag `v0.1.0`, prova su un Postgres gestito.
+
+## Ciclo 9 (27 settembre 2026): pronto per il lancio
+
+**Obiettivo.** Chiudere la milestone prima del lancio: dimostrare perché lo stato sta nel database, aprire il worker a provider diversi da OpenRouter, servire chi non può tenere un processo acceso, rendere ripetibili le misure.
+
+**Fatto.**
+
+- Prova sotto guasti in `bench/failure/`: lo stesso carico (2000 righe, inserimenti, modifiche dall'applicazione e da uno script che la scavalca, un cambio di prompt, correzioni umane sul 3 per cento) su pgbee e su due progetti nel codice applicativo con coda durevole a lease, "salva, poi accoda" e outbox transazionale; SIGKILL di applicazione o worker ogni ~60 operazioni, due interruzioni della coda esterna, modello finto deterministico con il 3 per cento di 5xx, `pgbee run` vero. Su tre seed pgbee chiude a zero; gli altri perdono 20-30 correzioni su 56-60 e lasciano 15-49 valori vecchi (numeri e letture in `bench/README.md` e `ANALYSIS.md`). Una correzione umana che scrive il valore già presente non è un override (gli ORM riscrivono tutte le colonne): lo scenario usa correzioni che cambiano il valore, il README lo dichiara fra i limiti.
+- Deadlock trovato dalla prova e corretto nello `sql/0014`: l'UPDATE dell'applicazione blocca la riga e poi, col trigger, il job; `complete_job` bloccava il job e poi la riga, e Postgres uccideva una delle due transazioni, a volte quella dell'utente. Ora `complete_job` blocca prima la riga (`FOR NO KEY UPDATE`), poi il job, e ricontrolla; un test lo riproduce con due connessioni. Il worker non esce più quando il database rifiuta un risultato (CHECK o trigger dell'utente, conflitto di lock): il job fallisce, ritentabile se transitorio; esce solo se perde la connessione.
+- Provider compatibile OpenAI (OpenAI, Azure v1, Ollama, vLLM) accanto a OpenRouter, uno per processo, scelto dall'ambiente (`PGBEE_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`): solo parametri standard col loro nome, `llm` ed `embedding`, `decision` resta su OpenRouter e `pgbee run` rifiuta di servirlo altrimenti. Prezzi per milione di token nella config della colonna (`input_usd_per_mtok`, `output_usd_per_mtok`, validati dallo `sql/0013`): il worker calcola il costo quando il provider non lo riporta, e spesa, tetti e viste funzionano. `PGBEE_REQUEST_TIMEOUT_SECONDS` per i server locali lenti. Provato su Ollama in Docker (qwen2.5:0.5b, all-minilm): valori, vettori e costo dai prezzi; un modello senza ragionamento rifiuta `reasoning_effort` con un 400 e il job muore senza ritentare, come deve. Ollama in Docker su Mac si blocca con tutti i thread della VM occupati: con `num_thread 4` risponde in 5 s.
+- `pgbee run --drain [--max-seconds N]`: le stesse corsie senza attese, fino a coda vuota, poi uscita; prima restituisce i job delle esecuzioni morte. Sezione nel README per crontab, CronJob e job schedulati. Provato come processo vero contro Ollama.
+- Benchmark nel repository: `bench/failure/`, `bench/scale.py` (dichiarazione, caricamenti massivi e claim su 1M righe, riscrive gli script rimasti fuori dal repo), `bench/lanes.py` (ciclo unico contro una corsia per backend con latenze simulate), risultati in `bench/results/`, target `make bench-*`, lint e typecheck anche in CI.
+
+**Decisioni.** #22 (provider compatibile OpenAI, uno per worker, prezzi nella config), #23 (modalità drain).
+
+**Prossimo passo.** La milestone di pubblicazione in `ROADMAP.md`: passi di Simone su PyPI e GitHub, prova su un Postgres gestito, repository pubblico e tag su comando.

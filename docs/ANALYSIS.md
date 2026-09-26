@@ -106,6 +106,16 @@ Letture:
 - Il meccanismo ha retto al volume senza interventi: backfill a chunk, fratelli `decision` nella stessa chiamata, tetti di spesa, embedding a lotti, zero errori da gestire.
 - Difetto trovato e corretto: Jev (mediana 305 ms) ha impiegato 749 s per le sue 3000 righe, l'embedding (33 ms) 751 s, l'LLM 967 s. Il worker prendeva batch misti e aspettava la fine di tutto il batch, quindi i backend veloci avanzavano al passo dell'LLM. Con un ciclo e una connessione per backend (`DECISIONS.md` #20), rilanciato su 600 reclami (`results-600.json`): Jev finisce in 28 s, l'embedding in 21, l'LLM in 144, contro tempi quasi uguali per tutti prima.
 
+## Prova sotto guasti: pgbee contro il job nel codice (27 settembre 2026)
+
+Risponde alla prima lettura del dubbio ("chi lavora seriamente preferisce il job in codice") sul piano tecnico, non su quello della domanda. `bench/failure/` fa girare lo stesso carico su pgbee e su due progetti nel codice applicativo con una coda buona (durevole, con lease e retry): "salva, poi accoda" e outbox transazionale. Modello finto deterministico, costo zero. Guasti uguali per tutti: SIGKILL di applicazione o worker ogni ~60 operazioni, due interruzioni della coda esterna, prompt cambiato a metà, modifiche fatte da uno script che scavalca l'applicazione, correzioni umane sul 3 per cento delle righe. Su 2000 righe e tre seed pgbee chiude a zero su righe senza valore, valori vecchi creduti buoni e correzioni sovrascritte; "salva, poi accoda" lascia 1-4 righe vuote, 30-49 valori vecchi e perde 20-27 correzioni su 56-60; l'outbox chiude solo le righe vuote (15-44 valori vecchi, 21-30 correzioni perse). Numeri e scelte in `bench/README.md`.
+
+Letture:
+- Le perdite dei progetti nel codice non vengono dalla coda ma da ciò che il codice non sa: quale versione di prompt e di testo ha prodotto un valore, e se un valore l'ha scritto una persona. È esattamente la parte che pgbee mette nel database.
+- I valori vecchi crescono con l'attesa in coda (le prove giravano su una macchina carica); gli zeri di pgbee non dipendono dai tempi.
+- La prova ha trovato un deadlock in pgbee fra l'UPDATE dell'applicazione e `complete_job`, che poteva far fallire una scrittura dell'utente: corretto nello 0014 prima di misurare. Il test di carico va rifatto a ogni cambio del contratto.
+- Non dice nulla sulla domanda: che il problema esista e sia risolto non prova che qualcuno lo voglia comprare o adottare. Quello resta al piano di validazione in `ROADMAP.md`.
+
 ## Criterio di uscita
 
 La demo mostra il ciclo completo su dati realistici: inserimento, coda, batch, retry sotto errore, cambio prompt con ricalcolo selettivo, override umano che resta. Se il ciclo regge senza interventi manuali e l'esperienza "aggiungi la colonna e non tocchi più niente" convince, si passa alla fase prodotto (worker compilato, chunking, SQLite; il packaging è arrivato prima, `DECISIONS.md` #18). Altrimenti si chiude e resta il modello concettuale.
