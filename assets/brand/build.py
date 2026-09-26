@@ -22,7 +22,8 @@ HONEY, HONEY_LIGHT, WING, INK = "#FFC21A", "#FFD95A", "#D6ECFF", "#1D1A16"
 CREAM, NIGHT = "#FFF8E7", "#17140F"
 THEMES = {
     "light": {"line": INK, "pg": "#8A7F6A", "bee": INK, "tag": "#8A7F6A", "bg": CREAM},
-    "dark": {"line": "#FFF3D6", "pg": "#A89F8C", "bee": "#FFF3D6", "tag": "#A89F8C", "bg": NIGHT},
+    # D2a: dark-honey outline (antennae stay visible on GitHub's #0d1117), honey wordmark.
+    "dark": {"line": "#8A6A1E", "pg": "#B08A2E", "bee": HONEY, "tag": "#8B949E", "bg": NIGHT},
 }
 
 

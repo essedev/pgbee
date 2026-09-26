@@ -5,7 +5,9 @@
   </picture>
 </p>
 
-AI-derived columns for PostgreSQL. Like a worker bee filling cells: you declare how a column is derived from other columns, and pgbee keeps every row filled, versioned and accounted for.
+<p align="center">AI-derived columns for PostgreSQL</p>
+
+Like a worker bee filling cells: you declare how a column is derived from other columns, and pgbee keeps every row filled, versioned and accounted for.
 
 ```sql
 SELECT bee.add_column('ticket', 'category', array['body'], 'enum', 'decision',

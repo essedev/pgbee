@@ -42,6 +42,19 @@
   .font-a { font-family: "JetBrains Mono", monospace; font-weight: 800; }
   .font-b { font-family: "Space Mono", monospace; font-weight: 700; }
   .font-c { font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+  .gh-dark { background: #0d1117; border: 1px solid #30363d; }
+  .gh-light { background: #ffffff; border: 1px solid #d0d7de; }
+  .readme { align-items: center; text-align: center; }
+  .readme .lockup svg { width: 76px; height: 76px; }
+  .readme .word { font-size: 46px; }
+  .readme .tagline { font: 500 15px/1.4 "JetBrains Mono", monospace; margin-top: 4px; }
+  .d1 { --line: #1D1A16; } .d1 .pg { color: #8B949E !important; } .d1 .bee { color: #FFC21A; } .d1 .tagline { color: #8B949E; }
+  .d2 { --line: #1D1A16; } .d2 .pg { color: #B08A2E !important; } .d2 .bee { color: #FFC21A; } .d2 .tagline { color: #8B949E; }
+  .d3 { --line: #5A4412; } .d3 .pg { color: #8B949E !important; } .d3 .bee { color: #FFD95A; } .d3 .tagline { color: #8B949E; }
+  .l0 { --line: #1D1A16; } .l0 .pg { color: #8A7F6A; } .l0 .bee { color: #1D1A16; } .l0 .tagline { color: #57606a; }
+  .d2a, .d2b, .d2c { } .d2a .pg, .d2b .pg, .d2c .pg { color: #B08A2E !important; }
+  .d2a .bee, .d2b .bee, .d2c .bee { color: #FFC21A; } .d2a .tagline, .d2b .tagline, .d2c .tagline { color: #8B949E; }
+  .d2a { --line: #8A6A1E; } .d2b { --line: #B08A2E; } .d2c { --line: #6E7681; }
 </style>
 </head>
 <body>
@@ -226,6 +239,36 @@
     </div>
   </div>
   <p class="note">Niente volto: cilindro a tre strisce, ali e antenne come forme pulite, contorno più spesso. È un marchio più che un personaggio, e tiene meglio a 16 e 32 pixel.</p>
+</section>
+
+<section>
+  <div class="head"><span class="letter">D2</span><h2>Tema scuro: la scritta di D2, tre contorni</h2><span>sfondo #0d1117</span></div>
+  <div class="row">
+    <div class="card gh-dark readme d2a">
+      <div class="lockup"><svg><use href="#bee-a2"/></svg>
+        <div class="word font-a"><span class="pg">pg</span><span class="bee">bee</span></div></div>
+      <div class="tagline">AI-derived columns for PostgreSQL</div>
+    </div>
+    <div class="card gh-dark readme d2b">
+      <div class="lockup"><svg><use href="#bee-a2"/></svg>
+        <div class="word font-a"><span class="pg">pg</span><span class="bee">bee</span></div></div>
+      <div class="tagline">AI-derived columns for PostgreSQL</div>
+    </div>
+    <div class="card gh-dark readme d2c">
+      <div class="lockup"><svg><use href="#bee-a2"/></svg>
+        <div class="word font-a"><span class="pg">pg</span><span class="bee">bee</span></div></div>
+      <div class="tagline">AI-derived columns for PostgreSQL</div>
+    </div>
+  </div>
+  <p class="note">La scritta di D2 con tre contorni per l'ape. D2a (a sinistra): miele scuro. D2b (al centro): lo stesso ocra di "pg", ape e scritta legate. D2c (a destra): grigio neutro, quello del testo secondario di GitHub. La frase sotto è testo vero del README.</p>
+  <div class="row" style="margin-top:16px">
+    <div class="card gh-light readme l0">
+      <div class="lockup"><svg><use href="#bee-a2"/></svg>
+        <div class="word font-a"><span class="pg">pg</span><span class="bee">bee</span></div></div>
+      <div class="tagline">AI-derived columns for PostgreSQL</div>
+    </div>
+  </div>
+  <p class="note">Per confronto, il tema chiaro com'è ora, sullo sfondo bianco di GitHub.</p>
 </section>
 
 </body>
