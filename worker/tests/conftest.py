@@ -9,7 +9,7 @@ import psycopg
 import pytest
 from psycopg.rows import DictRow, dict_row
 
-from aicol.installer import install
+from pgbee.installer import install
 
 ADMIN_URL = os.environ.get("DATABASE_URL", "postgresql://aidb:aidb@localhost:4460/aidb")
 TEST_DB = "aidb_test"
@@ -36,7 +36,7 @@ def database_url() -> Iterator[str]:
 
 @pytest.fixture
 def conn(database_url: str) -> Iterator[psycopg.Connection[DictRow]]:
-    """Autocommit connection on a clean slate: user tables and ai rows removed after each test."""
+    """Autocommit connection on a clean slate: user tables and bee rows removed after each test."""
     with psycopg.connect(database_url, autocommit=True, row_factory=dict_row) as c:
         yield c
         _reset(c)
@@ -53,12 +53,12 @@ def _reset(c: psycopg.Connection[DictRow]) -> None:
     tables = c.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'").fetchall()
     for t in tables:
         c.execute(f'DROP TABLE IF EXISTS public."{t["tablename"]}" CASCADE')
-    c.execute("DELETE FROM ai.job")
-    c.execute("DELETE FROM ai.spend")
-    c.execute("DELETE FROM ai.result")
-    c.execute("UPDATE ai.column_def SET current_version_id = NULL")
-    c.execute("DELETE FROM ai.column_version")
-    c.execute("DELETE FROM ai.column_def")
+    c.execute("DELETE FROM bee.job")
+    c.execute("DELETE FROM bee.spend")
+    c.execute("DELETE FROM bee.result")
+    c.execute("UPDATE bee.column_def SET current_version_id = NULL")
+    c.execute("DELETE FROM bee.column_version")
+    c.execute("DELETE FROM bee.column_def")
 
 
 @pytest.fixture

@@ -30,7 +30,7 @@ L'uscita di Timescale ammette due letture. La prima: non c'è domanda pagante, c
 | postgres-llm (JigsawStack) | Trigger, coda, pg_cron, output JSON strutturato, retry. Il più vicino come concetto | 56 stelle, 14 commit. Niente batch, versioning, confidenza, override. Il DB chiama fuori via estensione `http` |
 | PostgresML | Modelli dentro Postgres con GPU | Altro problema (inferenza in-DB), pesante da operare |
 | SQLite-AI (SQLite Cloud) | Modelli GGUF locali, embedding, chat, Whisper da SQL | Funzioni da chiamare, non colonne mantenute |
-| Snowflake Cortex, Databricks, BigQuery | `AI_CLASSIFY`, `ai_extract` nativi | Warehouse. Chiamate sincrone nella query, non colonne mantenute con lineage |
+| Snowflake Cortex, Databricks, BigQuery | `AI_CLASSIFY`, `bee_extract` nativi | Warehouse. Chiamate sincrone nella query, non colonne mantenute con lineage |
 | Airtable Field Agents, Notion Autofill | La stessa idea lato no-code | Chiusi, SaaS, nessuna versione per sviluppatori |
 
 Nessuno oggi fa colonne derivate generiche con lineage, versioning e override su Postgres.

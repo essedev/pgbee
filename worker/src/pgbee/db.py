@@ -8,7 +8,7 @@ from typing import Any
 import psycopg
 from psycopg.rows import DictRow, dict_row
 
-from aicol.jobs import Job
+from pgbee.jobs import Job
 
 WORKER_BACKENDS = ["llm", "decision", "embedding"]
 
@@ -29,7 +29,8 @@ class Contract:
 
     async def claim(self, worker_id: str, batch_size: int) -> list[Job]:
         cur = await self._conn.execute(
-            "SELECT * FROM ai.claim_jobs(%s, %s, %s::ai.backend[]) ORDER BY column_def_id, job_id",
+            "SELECT * FROM bee.claim_jobs(%s, %s, %s::bee.backend[])"
+            " ORDER BY column_def_id, job_id",
             (worker_id, batch_size, WORKER_BACKENDS),
         )
         return [Job.from_row(row) for row in await cur.fetchall()]
@@ -46,7 +47,7 @@ class Contract:
         details: dict[str, Any] | None = None,
     ) -> str:
         cur = await self._conn.execute(
-            "SELECT ai.complete_job(%s::bigint, %s, %s::jsonb, %s::real, %s, %s::jsonb, %s,"
+            "SELECT bee.complete_job(%s::bigint, %s, %s::jsonb, %s::real, %s, %s::jsonb, %s,"
             " %s::jsonb) AS outcome",
             (
                 job.job_id,
@@ -65,7 +66,7 @@ class Contract:
 
     async def fail(self, job: Job, error: str, *, retryable: bool) -> str | None:
         cur = await self._conn.execute(
-            "SELECT ai.fail_job(%s::bigint, %s, %s) AS status",
+            "SELECT bee.fail_job(%s::bigint, %s, %s) AS status",
             (job.job_id, error[:2000], retryable),
         )
         row = await cur.fetchone()
@@ -74,7 +75,7 @@ class Contract:
 
     async def reclaim_stale(self, timeout_seconds: int) -> int:
         cur = await self._conn.execute(
-            "SELECT ai.reclaim_stale(make_interval(secs => %s)) AS n", (timeout_seconds,)
+            "SELECT bee.reclaim_stale(make_interval(secs => %s)) AS n", (timeout_seconds,)
         )
         row = await cur.fetchone()
         assert row is not None
@@ -82,16 +83,16 @@ class Contract:
 
     async def prune(self, limit: int) -> tuple[int, int]:
         """One maintenance batch: (results, jobs) deleted, each at most `limit`."""
-        cur = await self._conn.execute("SELECT results, jobs FROM ai.prune(%s)", (limit,))
+        cur = await self._conn.execute("SELECT results, jobs FROM bee.prune(%s)", (limit,))
         row = await cur.fetchone()
         assert row is not None
         return int(row["results"]), int(row["jobs"])
 
     async def listen(self) -> None:
-        await self._conn.execute("LISTEN ai_jobs")
+        await self._conn.execute("LISTEN bee_jobs")
 
     async def wait_for_notify(self, max_wait: float) -> bool:
-        """Block until a NOTIFY on ai_jobs arrives or max_wait seconds pass. True on notify.
+        """Block until a NOTIFY on bee_jobs arrives or max_wait seconds pass. True on notify.
 
         Notifications received while the worker was busy are queued by psycopg; they are all
         drained here, since one claim serves them all.

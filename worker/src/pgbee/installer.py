@@ -1,4 +1,4 @@
-"""Apply the versioned SQL files in `sql/` to a database and track them in ai.schema_version."""
+"""Apply the versioned SQL files in `sql/` to a database and track them in bee.schema_version."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ SQL_FILE_RE = re.compile(r"^(\d{4})_[a-z0-9_]+\.sql$")
 
 
 class InstalledAsExtension(RuntimeError):
-    """The database has ai-db as a Postgres extension; the file installer must not touch it."""
+    """The database has pgbee as a Postgres extension; the file installer must not touch it."""
 
 
 @dataclass(frozen=True)
@@ -27,9 +27,9 @@ class SqlFile:
 def sql_dir() -> Path:
     """Directory holding the extension SQL files, shipped inside the package.
 
-    Overridable with AICOL_SQL_DIR. The repository's top level `sql` links here.
+    Overridable with PGBEE_SQL_DIR. The repository's top level `sql` links here.
     """
-    env = os.environ.get("AICOL_SQL_DIR")
+    env = os.environ.get("PGBEE_SQL_DIR")
     if env:
         return Path(env)
     return Path(__file__).resolve().parent / "sql"
@@ -50,25 +50,25 @@ def sql_files(directory: Path | None = None) -> list[SqlFile]:
 
 def applied_versions(conn: psycopg.Connection[Any]) -> set[int]:
     exists = conn.execute(
-        "SELECT 1 FROM pg_tables WHERE schemaname = 'ai' AND tablename = 'schema_version'"
+        "SELECT 1 FROM pg_tables WHERE schemaname = 'bee' AND tablename = 'schema_version'"
     ).fetchone()
     if not exists:
         return set()
     cur = conn.cursor(row_factory=tuple_row)
-    rows = cur.execute("SELECT version FROM ai.schema_version").fetchall()
+    rows = cur.execute("SELECT version FROM bee.schema_version").fetchall()
     return {int(row[0]) for row in rows}
 
 
 def install(conn: psycopg.Connection[Any], directory: Path | None = None) -> list[int]:
     """Apply every SQL file not yet recorded, one transaction each. Returns applied versions.
 
-    Refuses a database where ai-db was installed as an extension: there the files arrive through
-    ALTER EXTENSION aicol UPDATE, and applying them here would detach objects from it.
+    Refuses a database where pgbee was installed as an extension: there the files arrive through
+    ALTER EXTENSION pgbee UPDATE, and applying them here would detach objects from it.
     """
-    if conn.execute("SELECT 1 FROM pg_extension WHERE extname = 'aicol'").fetchone():
+    if conn.execute("SELECT 1 FROM pg_extension WHERE extname = 'pgbee'").fetchone():
         raise InstalledAsExtension(
-            "ai-db is installed as the extension aicol:"
-            " upgrade it with ALTER EXTENSION aicol UPDATE"
+            "pgbee is installed as the extension pgbee:"
+            " upgrade it with ALTER EXTENSION pgbee UPDATE"
         )
     applied = applied_versions(conn)
     done: list[int] = []
@@ -77,6 +77,8 @@ def install(conn: psycopg.Connection[Any], directory: Path | None = None) -> lis
             continue
         with conn.transaction():
             conn.execute(sql_file.path.read_text(encoding="utf-8"))
-            conn.execute("INSERT INTO ai.schema_version (version) VALUES (%s)", (sql_file.version,))
+            conn.execute(
+                "INSERT INTO bee.schema_version (version) VALUES (%s)", (sql_file.version,)
+            )
         done.append(sql_file.version)
     return done

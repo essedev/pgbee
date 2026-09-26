@@ -13,15 +13,15 @@ import pytest
 from fakes import FakeProvider, add_urgency
 from psycopg.rows import DictRow
 
-from aicol.db import Contract
-from aicol.jobs import Job
-from aicol.providers import (
+from pgbee.db import Contract
+from pgbee.jobs import Job
+from pgbee.providers import (
     ProviderError,
     classify,
     parse_json_object,
 )
-from aicol.schema import response_schema, validate_response
-from aicol.worker import Worker
+from pgbee.schema import response_schema, validate_response
+from pgbee.worker import Worker
 
 
 async def run_once(database_url: str, provider: FakeProvider, batch_size: int = 20) -> Any:
@@ -44,11 +44,11 @@ async def test_worker_fills_llm_column_end_to_end(
     rows = conn.execute("SELECT id, urgency FROM ticket ORDER BY id").fetchall()
     assert [r["urgency"] for r in rows] == ["high", "low", "low"]
     lineage = conn.execute(
-        "SELECT model, confidence, usage FROM ai.result WHERE is_current ORDER BY row_pk"
+        "SELECT model, confidence, usage FROM bee.result WHERE is_current ORDER BY row_pk"
     ).fetchall()
     assert {r["model"] for r in lineage} == {"fake/model"}
     assert lineage[0]["usage"]["cost"] == pytest.approx(0.00001)
-    review = conn.execute("SELECT count(*) AS n FROM ai.needs_review").fetchone()
+    review = conn.execute("SELECT count(*) AS n FROM bee.needs_review").fetchone()
     assert review is not None and review["n"] == 2
     again = await run_once(database_url, provider)
     assert again.claimed == 0
@@ -58,7 +58,7 @@ async def test_worker_fills_embedding_column_in_one_call(
     conn: psycopg.Connection[DictRow], ticket: str, database_url: str
 ) -> None:
     conn.execute(
-        "SELECT ai.add_column('ticket', 'embedding', array['body'], 'vector', p_backend => 'embedding',"
+        "SELECT bee.add_column('ticket', 'embedding', array['body'], 'vector', p_backend => 'embedding',"
         " p_model => 'fake/embed', p_output_schema => '{\"dimensions\": 3}')"
     )
     provider = FakeProvider()
@@ -67,7 +67,7 @@ async def test_worker_fills_embedding_column_in_one_call(
     assert len(provider.embed_calls) == 1 and len(provider.embed_calls[0]) == 3
     row = conn.execute("SELECT body, embedding::text AS e FROM ticket WHERE id = 3").fetchone()
     assert row is not None and row["e"] == f"[{len(row['body'])},1,0]"
-    cost = conn.execute("SELECT results, cost FROM ai.cost_by_column").fetchone()
+    cost = conn.execute("SELECT results, cost FROM bee.cost_by_column").fetchone()
     assert (
         cost is not None and cost["results"] == 3 and float(cost["cost"]) == pytest.approx(0.000009)
     )
@@ -77,7 +77,7 @@ async def test_worker_splits_embedding_calls_by_backend_batch_size(
     conn: psycopg.Connection[DictRow], ticket: str, database_url: str
 ) -> None:
     conn.execute(
-        "SELECT ai.add_column('ticket', 'embedding', array['body'], 'vector', p_backend => 'embedding',"
+        "SELECT bee.add_column('ticket', 'embedding', array['body'], 'vector', p_backend => 'embedding',"
         " p_model => 'fake/embed', p_output_schema => '{\"dimensions\": 3}',"
         " p_backend_config => '{\"batch_size\": 2}')"
     )
@@ -96,26 +96,26 @@ async def test_worker_reports_failures_with_retry_decision(
     )
     stats = await run_once(database_url, FakeProvider(fail_with=too_many))
     assert stats.failed == 3 and stats.rate_limited is True
-    jobs = conn.execute("SELECT status, attempts, last_error FROM ai.job").fetchall()
+    jobs = conn.execute("SELECT status, attempts, last_error FROM bee.job").fetchall()
     assert {j["status"] for j in jobs} == {"pending"} and {j["attempts"] for j in jobs} == {1}
     assert all("rate limited" in j["last_error"] for j in jobs)
 
-    conn.execute("UPDATE ai.job SET next_attempt_at = now()")
+    conn.execute("UPDATE bee.job SET next_attempt_at = now()")
     bad = openai.BadRequestError("400", response=httpx.Response(400, request=request), body=None)
     stats = await run_once(database_url, FakeProvider(fail_with=bad))
     assert stats.failed == 3 and stats.rate_limited is False
-    assert {j["status"] for j in conn.execute("SELECT status FROM ai.job").fetchall()} == {"dead"}
+    assert {j["status"] for j in conn.execute("SELECT status FROM bee.job").fetchall()} == {"dead"}
 
 
 async def test_worker_skips_custom_backend_jobs(
     conn: psycopg.Connection[DictRow], ticket: str, database_url: str
 ) -> None:
     conn.execute(
-        "SELECT ai.add_column('ticket', 'geo', array['customer'], 'jsonb', p_backend => 'custom', p_model => 'geocoder')"
+        "SELECT bee.add_column('ticket', 'geo', array['customer'], 'jsonb', p_backend => 'custom', p_model => 'geocoder')"
     )
     stats = await run_once(database_url, FakeProvider())
     assert stats.claimed == 0
-    pending = conn.execute("SELECT count(*) AS n FROM ai.job WHERE status = 'pending'").fetchone()
+    pending = conn.execute("SELECT count(*) AS n FROM bee.job WHERE status = 'pending'").fetchone()
     assert pending is not None and pending["n"] == 3
 
 
@@ -207,7 +207,7 @@ async def test_worker_routes_decision_backend_and_stores_details(
     conn: psycopg.Connection[DictRow], ticket: str, database_url: str
 ) -> None:
     conn.execute(
-        "SELECT ai.add_column('ticket', 'urgency', array['body'], 'enum', p_backend => 'decision',"
+        "SELECT bee.add_column('ticket', 'urgency', array['body'], 'enum', p_backend => 'decision',"
         " p_prompt => 'Urgenza', p_model => 'typesafe/jev-1.13',"
         ' p_output_schema => \'{"low": "routine", "high": "shop cannot sell"}\')'
     )
@@ -215,14 +215,14 @@ async def test_worker_routes_decision_backend_and_stores_details(
     stats = await run_once(database_url, provider)
     assert stats.outcomes == {"written": 3} and all(j.backend == "decision" for j in provider.calls)
     rows = conn.execute(
-        "SELECT r.value, r.confidence, r.details FROM ai.result r WHERE r.is_current ORDER BY r.row_pk"
+        "SELECT r.value, r.confidence, r.details FROM bee.result r WHERE r.is_current ORDER BY r.row_pk"
     ).fetchall()
     assert rows[0]["value"] == "high" and rows[0]["details"]["probabilities"]["high"] == 0.97
     assert conn.execute("SELECT urgency FROM ticket WHERE id = 1").fetchone() == {"urgency": "high"}
 
 
 def test_decision_question_and_answer_mapping() -> None:
-    from aicol.providers import decision_answer, decision_question
+    from pgbee.providers import decision_answer, decision_question
 
     def job(output_type: str, schema: Any, source: dict[str, Any] | None = None) -> Job:
         return Job(
@@ -283,7 +283,7 @@ def scalar(conn: psycopg.Connection[DictRow], sql: str) -> Any:
 def add_decision(conn: psycopg.Connection[DictRow], column: str, output_type: str) -> int:
     schema = '{"low": "routine", "high": "shop cannot sell"}' if output_type == "enum" else "{}"
     row = conn.execute(
-        f"SELECT ai.add_column('ticket', '{column}', array['body'], '{output_type}',"
+        f"SELECT bee.add_column('ticket', '{column}', array['body'], '{output_type}',"
         " p_backend => 'decision', p_prompt => 'Question', p_model => 'typesafe/jev-1.13',"
         " p_output_schema => %s::jsonb) AS id",
         (schema,),
@@ -305,7 +305,7 @@ async def test_decision_columns_of_the_same_row_share_one_call(
     row = conn.execute("SELECT urgency, blocking FROM ticket WHERE id = 1").fetchone()
     assert row == {"urgency": "high", "blocking": True}
     shared = conn.execute(
-        "SELECT DISTINCT (details ->> 'questions_in_call')::int AS n FROM ai.result"
+        "SELECT DISTINCT (details ->> 'questions_in_call')::int AS n FROM bee.result"
     ).fetchall()
     assert shared == [{"n": 2}]
 
@@ -320,7 +320,7 @@ async def test_a_missing_answer_fails_only_its_own_job(
     stats = await run_once(database_url, provider)
     assert stats.outcomes == {"written": 3} and stats.failed == 3
     states = conn.execute(
-        "SELECT column_def_id, status, last_error FROM ai.job ORDER BY column_def_id, id"
+        "SELECT column_def_id, status, last_error FROM bee.job ORDER BY column_def_id, id"
     ).fetchall()
     assert {(s["column_def_id"] == blocking, s["status"]) for s in states} == {
         (False, "done"),
@@ -329,7 +329,7 @@ async def test_a_missing_answer_fails_only_its_own_job(
 
 
 def test_fan_out_groups_by_row_and_model_and_caps_the_questions() -> None:
-    from aicol.worker import MAX_QUESTIONS_PER_CALL, fan_out
+    from pgbee.worker import MAX_QUESTIONS_PER_CALL, fan_out
 
     def job(job_id: int, row: int, model: str = "typesafe/jev-1.13", body: str = "x") -> Job:
         return Job(
@@ -372,28 +372,28 @@ def test_claim_brings_only_ready_decision_siblings_with_the_same_model(
     add_decision(conn, "urgency", "enum")
     same_model = add_decision(conn, "blocking", "boolean")
     conn.execute(
-        "SELECT ai.add_column('ticket', 'spam', array['body'], 'boolean', 'decision',"
+        "SELECT bee.add_column('ticket', 'spam', array['body'], 'boolean', 'decision',"
         " p_prompt => 'Spam?', p_model => 'typesafe/jev-2')"
     )
     conn.execute(
-        "SELECT ai.add_column('ticket', 'summary', array['body'], 'text',"
+        "SELECT bee.add_column('ticket', 'summary', array['body'], 'text',"
         " p_prompt => 'Summary', p_model => 'openai/gpt-6-luna')"
     )
     # backfill order within a column is not row order: find the row claimed first
-    first = scalar(conn, "SELECT row_pk ->> 'id' FROM ai.job ORDER BY next_attempt_at, id LIMIT 1")
+    first = scalar(conn, "SELECT row_pk ->> 'id' FROM bee.job ORDER BY next_attempt_at, id LIMIT 1")
     conn.execute(
-        "UPDATE ai.job SET next_attempt_at = now() + interval '1 hour'"
+        "UPDATE bee.job SET next_attempt_at = now() + interval '1 hour'"
         " WHERE column_def_id = %s AND row_pk ->> 'id' = %s",
         (same_model, first),
     )
     claimed = conn.execute(
-        "SELECT d.column_name, j.row_pk ->> 'id' AS id FROM ai.claim_jobs('w', 1) j"
-        " JOIN ai.column_def d ON d.id = j.column_def_id ORDER BY 1"
+        "SELECT d.column_name, j.row_pk ->> 'id' AS id FROM bee.claim_jobs('w', 1) j"
+        " JOIN bee.column_def d ON d.id = j.column_def_id ORDER BY 1"
     ).fetchall()
     assert claimed == [{"column_name": "urgency", "id": first}], "sibling in backoff stays"
     claimed = conn.execute(
-        "SELECT d.column_name, j.row_pk ->> 'id' AS id FROM ai.claim_jobs('w', 1) j"
-        " JOIN ai.column_def d ON d.id = j.column_def_id ORDER BY 1"
+        "SELECT d.column_name, j.row_pk ->> 'id' AS id FROM bee.claim_jobs('w', 1) j"
+        " JOIN bee.column_def d ON d.id = j.column_def_id ORDER BY 1"
     ).fetchall()
     assert [c["column_name"] for c in claimed] == ["blocking", "urgency"], (
         "the same model sibling comes along; other models and llm columns do not"

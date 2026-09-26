@@ -2,7 +2,7 @@
 
 ## Stato corrente
 
-Estensione, worker e demo girano end to end contro OpenRouter, con quattro backend (`llm`, `decision`, `embedding`, `custom`), tetto di spesa per colonna, backfill a chunk che regge tabelle da milioni di righe, worker con privilegi minimi, retention del lineage, otto modelli confrontati e packaging (wheel con i file SQL, `CREATE EXTENSION aicol` per i server self-hosted, immagine Docker del worker; cicli 1-5 in `CYCLES.md`, risultati in `ANALYSIS.md`). Il criterio di uscita dell'esperimento è in `ANALYSIS.md`: il prossimo passo è valutarlo.
+Estensione, worker e demo girano end to end contro OpenRouter, con quattro backend (`llm`, `decision`, `embedding`, `custom`), tetto di spesa per colonna, backfill a chunk che regge tabelle da milioni di righe, worker con privilegi minimi, retention del lineage, otto modelli confrontati e packaging (wheel con i file SQL, `CREATE EXTENSION pgbee` per i server self-hosted, immagine Docker del worker; cicli 1-5 in `CYCLES.md`, risultati in `ANALYSIS.md`). Il criterio di uscita dell'esperimento è in `ANALYSIS.md`: il prossimo passo è valutarlo.
 
 ## Milestone aperte
 

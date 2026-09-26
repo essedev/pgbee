@@ -16,13 +16,13 @@ class Settings(BaseSettings):
     openrouter_base_url: str = Field(
         default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL"
     )
-    worker_id: str = Field(default_factory=lambda: socket.gethostname(), alias="AICOL_WORKER_ID")
-    poll_interval_seconds: float = Field(default=5.0, alias="AICOL_POLL_INTERVAL_SECONDS")
-    claim_timeout_seconds: int = Field(default=300, alias="AICOL_CLAIM_TIMEOUT_SECONDS")
+    worker_id: str = Field(default_factory=lambda: socket.gethostname(), alias="PGBEE_WORKER_ID")
+    poll_interval_seconds: float = Field(default=5.0, alias="PGBEE_POLL_INTERVAL_SECONDS")
+    claim_timeout_seconds: int = Field(default=300, alias="PGBEE_CLAIM_TIMEOUT_SECONDS")
     maintenance_interval_seconds: float = Field(
-        default=3600.0, gt=0, alias="AICOL_MAINTENANCE_INTERVAL_SECONDS"
+        default=3600.0, gt=0, alias="PGBEE_MAINTENANCE_INTERVAL_SECONDS"
     )
-    log_level: str = Field(default="info", alias="AICOL_LOG_LEVEL")
+    log_level: str = Field(default="info", alias="PGBEE_LOG_LEVEL")
 
 
 def load_settings() -> Settings:

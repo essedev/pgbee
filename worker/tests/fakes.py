@@ -8,8 +8,8 @@ from typing import Any
 import psycopg
 from psycopg.rows import DictRow
 
-from aicol.jobs import Job
-from aicol.providers import EmbeddingResult, LlmResult, ProviderError
+from pgbee.jobs import Job
+from pgbee.providers import EmbeddingResult, LlmResult, ProviderError
 
 URGENCY = json.dumps(["low", "medium", "high"])
 
@@ -83,7 +83,7 @@ class FakeProvider:
 
 def add_urgency(conn: psycopg.Connection[DictRow], **config: Any) -> None:
     conn.execute(
-        "SELECT ai.add_column('ticket', 'urgency', array['body'], 'enum',"
+        "SELECT bee.add_column('ticket', 'urgency', array['body'], 'enum',"
         " p_prompt => 'Classifica l''urgenza', p_model => 'anthropic/claude-haiku-4.5',"
         " p_output_schema => %s::jsonb, p_config => %s::jsonb)",
         (URGENCY, json.dumps(config)),

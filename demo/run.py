@@ -1,7 +1,7 @@
 # ruff: noqa: E501
 """End-to-end demo: derived columns on a support-ticket table, driven by the reference worker.
 
-Run from the worker directory so the aicol package is importable:
+Run from the worker directory so the pgbee package is importable:
 
     cd worker && uv run python ../demo/run.py [--skip-embedding] [--yes]
 
@@ -20,11 +20,11 @@ import psycopg
 from psycopg.rows import DictRow, dict_row
 from psycopg.types.json import Jsonb
 
-from aicol.db import Contract
-from aicol.installer import install
-from aicol.providers import OpenRouterProvider
-from aicol.settings import load_settings
-from aicol.worker import Worker
+from pgbee.db import Contract
+from pgbee.installer import install
+from pgbee.providers import OpenRouterProvider
+from pgbee.settings import load_settings
+from pgbee.worker import Worker
 
 HERE = Path(__file__).resolve().parent
 LLM_MODEL = "openai/gpt-6-luna"
@@ -76,7 +76,7 @@ def _cell(v: Any) -> str:
 
 def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> None:
     conn.execute(
-        "SELECT ai.add_column('ticket', 'urgency', array['body'], 'enum',"
+        "SELECT bee.add_column('ticket', 'urgency', array['body'], 'enum',"
         " p_prompt => %s, p_model => %s, p_output_schema => %s::jsonb, p_backend_config => %s,"
         ' p_config => \'{"confidence_threshold": 0.75, "budget_usd": 0.05}\')',
         (
@@ -89,7 +89,7 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
         ),
     )
     conn.execute(
-        "SELECT ai.add_column('ticket', 'category', array['body'], 'enum',"
+        "SELECT bee.add_column('ticket', 'category', array['body'], 'enum',"
         " p_prompt => %s, p_model => %s, p_output_schema => %s::jsonb, p_backend_config => %s)",
         (
             "Assegna la categoria del ticket: fatturazione (fatture, pagamenti, canoni, note di "
@@ -102,7 +102,7 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
         ),
     )
     conn.execute(
-        "SELECT ai.add_column('ticket', 'summary', array['customer', 'body'], 'text',"
+        "SELECT bee.add_column('ticket', 'summary', array['customer', 'body'], 'text',"
         " p_prompt => %s, p_model => %s, p_output_schema => '{\"max_length\": 120}',"
         " p_backend_config => %s)",
         (
@@ -113,7 +113,7 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
         ),
     )
     conn.execute(
-        "SELECT ai.add_column('ticket', 'extracted', array['body'], 'jsonb',"
+        "SELECT bee.add_column('ticket', 'extracted', array['body'], 'jsonb',"
         " p_prompt => %s, p_model => %s, p_output_schema => %s::jsonb, p_backend_config => %s)",
         (
             "Estrai dal ticket l'azione richiesta dal cliente, se parla di denaro, e i "
@@ -124,7 +124,7 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
         ),
     )
     conn.execute(
-        "SELECT ai.add_column('ticket', 'needs_human', array['body'], 'boolean',"
+        "SELECT bee.add_column('ticket', 'needs_human', array['body'], 'boolean',"
         " p_backend => 'decision', p_prompt => %s, p_model => %s, p_output_schema => %s)",
         (
             "Il ticket richiede che un operatore umano risponda entro oggi.",
@@ -139,7 +139,7 @@ def declare_columns(conn: psycopg.Connection[DictRow], with_embedding: bool) -> 
     )
     if with_embedding:
         conn.execute(
-            "SELECT ai.add_column('ticket', 'embedding', array['body'], 'vector',"
+            "SELECT bee.add_column('ticket', 'embedding', array['body'], 'vector',"
             " p_backend => 'embedding', p_model => %s, p_output_schema => %s::jsonb)",
             (EMBEDDING_MODEL, Jsonb({"dimensions": EMBEDDING_DIMENSIONS})),
         )
@@ -156,7 +156,7 @@ async def drain(worker: Worker, conn: psycopg.Connection[DictRow], label: str) -
         if stats.claimed:
             continue
         waiting = conn.execute(
-            "SELECT extract(epoch FROM min(next_attempt_at) - now()) AS s FROM ai.job WHERE status = 'pending'"
+            "SELECT extract(epoch FROM min(next_attempt_at) - now()) AS s FROM bee.job WHERE status = 'pending'"
         ).fetchone()
         if waiting is None or waiting["s"] is None:
             break
@@ -168,14 +168,14 @@ def cost_report(conn: psycopg.Connection[DictRow]) -> None:
     show(
         conn,
         "SELECT column_name, column_version_id AS ver, model, results, prompt_tokens, completion_tokens,"
-        " round(cost, 5) AS cost_usd, avg_latency_ms FROM ai.cost_by_column ORDER BY column_name, ver",
+        " round(cost, 5) AS cost_usd, avg_latency_ms FROM bee.cost_by_column ORDER BY column_name, ver",
     )
     show(
         conn,
         "SELECT column_name, budget_usd, budget_period, round(spent_usd, 5) AS spent_usd, exhausted"
-        " FROM ai.budgets ORDER BY column_name",
+        " FROM bee.budgets ORDER BY column_name",
     )
-    total = conn.execute("SELECT coalesce(sum(cost), 0) AS c FROM ai.cost_by_column").fetchone()
+    total = conn.execute("SELECT coalesce(sum(cost), 0) AS c FROM bee.cost_by_column").fetchone()
     assert total is not None
     print(f"  totale speso: {float(total['c']):.5f} USD")
 
@@ -232,12 +232,12 @@ async def run(args: argparse.Namespace) -> None:
             "category_jev",
         ):
             try:
-                conn.execute("SELECT ai.drop_column('ticket', %s)", (col,))
+                conn.execute("SELECT bee.drop_column('ticket', %s)", (col,))
             except psycopg.Error:
                 pass
         conn.execute("DROP TABLE IF EXISTS ticket")
-        conn.execute("DELETE FROM ai.job")
-        conn.execute("DELETE FROM ai.result")
+        conn.execute("DELETE FROM bee.job")
+        conn.execute("DELETE FROM bee.result")
     if conn.execute("SELECT to_regclass('ticket') AS t").fetchone()["t"] is not None:  # type: ignore[index]
         sys.exit("La tabella ticket esiste già: rilancia con --reset")
 
@@ -250,7 +250,8 @@ async def run(args: argparse.Namespace) -> None:
     say("2. Dichiarazione delle colonne derivate: una chiamata per colonna, poi non si tocca più")
     declare_columns(conn, with_embedding=not args.skip_embedding)
     show(
-        conn, "SELECT column_name, backend, model, output_type, pending FROM ai.columns ORDER BY id"
+        conn,
+        "SELECT column_name, backend, model, output_type, pending FROM bee.columns ORDER BY id",
     )
 
     contract = await Contract.connect(settings.database_url)
@@ -270,7 +271,7 @@ async def run(args: argparse.Namespace) -> None:
     show(
         conn,
         "SELECT r.row_pk ->> 'id' AS id, r.value, r.confidence, r.details ->> 'probability_true' AS p_true, r.latency_ms"
-        " FROM ai.result r JOIN ai.column_def d ON d.id = r.column_def_id"
+        " FROM bee.result r JOIN bee.column_def d ON d.id = r.column_def_id"
         " WHERE d.column_name = 'needs_human' AND r.is_current ORDER BY (r.row_pk ->> 'id')::int LIMIT 6",
     )
     show(
@@ -281,7 +282,7 @@ async def run(args: argparse.Namespace) -> None:
     say("   Righe sotto la soglia di confidenza (0.75) per la colonna urgency")
     show(
         conn,
-        "SELECT row_pk ->> 'id' AS id, value, confidence FROM ai.needs_review WHERE column_name = 'urgency' ORDER BY confidence",
+        "SELECT row_pk ->> 'id' AS id, value, confidence FROM bee.needs_review WHERE column_name = 'urgency' ORDER BY confidence",
     )
 
     say("4. Arriva un ticket nuovo: il trigger accoda, il worker lo prende")
@@ -289,7 +290,7 @@ async def run(args: argparse.Namespace) -> None:
         "INSERT INTO ticket (customer, channel, body) VALUES ('Macelleria Toro', 'chat',"
         " 'Il POS virtuale rifiuta tutte le carte da mezz''ora, in negozio c''è la fila')"
     )
-    show(conn, "SELECT id, status, column_def_id FROM ai.job WHERE status = 'pending' ORDER BY id")
+    show(conn, "SELECT id, status, column_def_id FROM bee.job WHERE status = 'pending' ORDER BY id")
     await drain(worker, conn, "ticket nuovo")
     show(conn, "SELECT id, urgency, category, summary FROM ticket WHERE id = 21")
 
@@ -300,12 +301,12 @@ async def run(args: argparse.Namespace) -> None:
     conn.execute("UPDATE ticket SET urgency = 'high' WHERE id = 12")
     show(
         conn,
-        "SELECT row_pk ->> 'id' AS id, source, value FROM ai.result WHERE is_current AND row_pk = '{\"id\": 12}' AND column_def_id = (SELECT id FROM ai.columns WHERE column_name = 'urgency')",
+        "SELECT row_pk ->> 'id' AS id, source, value FROM bee.result WHERE is_current AND row_pk = '{\"id\": 12}' AND column_def_id = (SELECT id FROM bee.columns WHERE column_name = 'urgency')",
     )
 
     say("6. Cambia il prompt di urgency: versione 2, si ricalcolano solo le righe della versione 1")
     conn.execute(
-        "SELECT ai.update_column('ticket', 'urgency', p_prompt => %s)",
+        "SELECT bee.update_column('ticket', 'urgency', p_prompt => %s)",
         (
             "Classifica l'urgenza. high solo se il negozio non riesce a vendere o c'è un rischio "
             "legale o di privacy. medium per malfunzionamenti che degradano il servizio. low per "
@@ -314,14 +315,14 @@ async def run(args: argparse.Namespace) -> None:
     )
     show(
         conn,
-        "SELECT column_name, version, stale, pending, human_overrides FROM ai.columns WHERE column_name = 'urgency'",
+        "SELECT column_name, version, stale, pending, human_overrides FROM bee.columns WHERE column_name = 'urgency'",
     )
     await drain(worker, conn, "ricalcolo selettivo")
     show(
         conn,
         "SELECT t.id, t.urgency, r.column_version_id AS ver, r.source FROM ticket t"
-        " JOIN ai.result r ON r.row_pk = jsonb_build_object('id', t.id) AND r.is_current"
-        " AND r.column_def_id = (SELECT id FROM ai.columns WHERE column_name = 'urgency')"
+        " JOIN bee.result r ON r.row_pk = jsonb_build_object('id', t.id) AND r.is_current"
+        " AND r.column_def_id = (SELECT id FROM bee.columns WHERE column_name = 'urgency')"
         " ORDER BY t.id",
     )
     print("  (la riga 12 è rimasta 'high' con source = human e nessuna versione)")
@@ -338,7 +339,7 @@ async def run(args: argparse.Namespace) -> None:
     cost_report(conn)
     show(
         conn,
-        "SELECT column_name, version, pending, claimed, done, dead, stale, human_overrides FROM ai.columns ORDER BY id",
+        "SELECT column_name, version, pending, claimed, done, dead, stale, human_overrides FROM bee.columns ORDER BY id",
     )
 
     await contract.close()

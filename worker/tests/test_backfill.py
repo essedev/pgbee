@@ -10,14 +10,14 @@ from test_extension import add_urgency, claim, complete, scalar
 
 def backfill_state(conn: psycopg.Connection[DictRow]) -> dict[str, object]:
     row = conn.execute(
-        "SELECT backfill_pending, backfill_scanned FROM ai.columns WHERE column_name = 'urgency'"
+        "SELECT backfill_pending, backfill_scanned FROM bee.columns WHERE column_name = 'urgency'"
     ).fetchone()
     assert row is not None
     return dict(row)
 
 
 def queued_rows(conn: psycopg.Connection[DictRow]) -> list[int]:
-    rows = conn.execute("SELECT (row_pk ->> 'id')::int AS id FROM ai.job ORDER BY 1").fetchall()
+    rows = conn.execute("SELECT (row_pk ->> 'id')::int AS id FROM bee.job ORDER BY 1").fetchall()
     return [r["id"] for r in rows]
 
 
@@ -52,9 +52,9 @@ def test_rows_with_nothing_to_do_are_scanned_past(
             complete(conn, job, "low")
     assert backfill_state(conn)["backfill_pending"] is False
     conn.execute("UPDATE ticket SET body = 'cambiato' WHERE id = 5")  # trigger enqueues it
-    conn.execute("DELETE FROM ai.job WHERE status = 'pending'")  # as if lost: backfill finds it
+    conn.execute("DELETE FROM bee.job WHERE status = 'pending'")  # as if lost: backfill finds it
 
-    assert scalar(conn, "SELECT ai.backfill(id) FROM ai.column_def") == 0, "rows 1-2 are current"
+    assert scalar(conn, "SELECT bee.backfill(id) FROM bee.column_def") == 0, "rows 1-2 are current"
     assert claim(conn, 10) != [], "one claim scans up to ten chunks to fill the queue"
     assert queued_rows(conn)[-1] == 5
     assert backfill_state(conn) == {"backfill_pending": False, "backfill_scanned": 5}
@@ -71,7 +71,7 @@ def test_backfill_walks_composite_and_uuid_keys(conn: psycopg.Connection[DictRow
         " generate_series(1, 3) s"
     )
     conn.execute(
-        "SELECT ai.add_column('note', 'kind', array['body'], 'text', p_prompt => 'p',"
+        "SELECT bee.add_column('note', 'kind', array['body'], 'text', p_prompt => 'p',"
         " p_model => 'm', p_config => '{\"backfill_chunk\": 1}')"
     )
     seen: list[tuple[str, int]] = []
@@ -91,7 +91,7 @@ def test_update_column_rescans_in_chunks_and_skips_pinned_rows(
         for job in jobs:
             complete(conn, job, "low")
     conn.execute("UPDATE ticket SET urgency = 'high' WHERE id = 4")  # human pin
-    conn.execute("SELECT ai.update_column('ticket', 'urgency', p_prompt => 'v2')")
+    conn.execute("SELECT bee.update_column('ticket', 'urgency', p_prompt => 'v2')")
     recomputed: list[int] = []
     while jobs := claim(conn):
         recomputed.extend(j["row_pk"]["id"] for j in jobs)
@@ -105,11 +105,11 @@ def test_disabled_or_over_budget_columns_do_not_advance(
     conn: psycopg.Connection[DictRow], five_tickets: str
 ) -> None:
     add_urgency(conn, backfill_chunk=2, budget_usd=0)
-    conn.execute("DELETE FROM ai.job")
+    conn.execute("DELETE FROM bee.job")
     assert claim(conn) == []
     assert backfill_state(conn)["backfill_scanned"] == 2
-    conn.execute("SELECT ai.configure('ticket', 'urgency', '{\"budget_usd\": null}')")
-    conn.execute("SELECT ai.disable('ticket', 'urgency')")
+    conn.execute("SELECT bee.configure('ticket', 'urgency', '{\"budget_usd\": null}')")
+    conn.execute("SELECT bee.disable('ticket', 'urgency')")
     assert claim(conn) == []
     assert backfill_state(conn)["backfill_scanned"] == 2
 

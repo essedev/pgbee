@@ -9,8 +9,8 @@ Regole specifiche di questo progetto. Gli standard trasversali sono nel CLAUDE.m
 
 ## SQL (`sql/`)
 
-- Un file per versione, `NNNN_descrizione.sql`, applicato una volta e mai riscritto dopo il primo commit che lo contiene. Correzioni in un file nuovo. Il file `NNNN` è anche la versione `0.N` dell'estensione (`aicol extension-files`).
-- Tutto nello schema `ai`. Tipi enum creati con `DO $$ ... IF NOT EXISTS` così lo script regge una seconda esecuzione parziale.
+- Un file per versione, `NNNN_descrizione.sql`, applicato una volta e mai riscritto dopo il primo commit che lo contiene. Correzioni in un file nuovo. Il file `NNNN` è anche la versione `0.N` dell'estensione (`pgbee extension-files`).
+- Tutto nello schema `bee`. Tipi enum creati con `DO $$ ... IF NOT EXISTS` così lo script regge una seconda esecuzione parziale.
 - SQL dinamico solo con `format()` e `%I` per gli identificatori, `%L` mai per valori che arrivano dall'esterno: si usano `EXECUTE ... USING`.
 - Le funzioni del contratto worker sono stabili: cambiarne la firma è una decisione in `DECISIONS.md` e una versione nuova della funzione, non una modifica in place.
 - Ogni funzione pubblica ha `COMMENT ON FUNCTION` con una riga di descrizione: è la documentazione che `\df+` mostra.
@@ -22,7 +22,7 @@ Regole specifiche di questo progetto. Gli standard trasversali sono nel CLAUDE.m
 - Errori dei provider classificati in una funzione sola (`retryable` o no): 429, 5xx, timeout sono retryable; 4xx di validazione e schema non rispettato dopo il tentativo di riparazione no.
 - Niente `except: pass`. Un errore che non si sa gestire finisce in `fail_job` con il messaggio intero.
 - Logging strutturato (`structlog`), un evento per job con id, definizione, esito, latenza, token.
-- Il worker non contiene SQL su tabelle utente: solo chiamate alle funzioni e alle viste dello schema `ai`.
+- Il worker non contiene SQL su tabelle utente: solo chiamate alle funzioni e alle viste dello schema `bee`.
 - Configurazione da variabili d'ambiente con `pydantic-settings`; nessun file di config.
 
 ## Test

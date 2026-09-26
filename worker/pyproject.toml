@@ -1,7 +1,7 @@
 [project]
-name = "aicol"
+name = "pgbee"
 version = "0.1.0"
-description = "Reference worker and installer for ai-db derived columns on PostgreSQL"
+description = "Reference worker and installer for pgbee derived columns on PostgreSQL"
 authors = [
     { name = "Simone Salerno", email = "doppiaesse@proton.me" }
 ]
@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-aicol = "aicol.cli:app"
+pgbee = "pgbee.cli:app"
 
 [build-system]
 requires = ["uv_build>=0.10.2,<0.11.0"]
@@ -51,6 +51,6 @@ python_version = "3.13"
 asyncio_mode = "auto"
 markers = [
     "llm: calls a real model provider, excluded by default",
-    "extension: needs the Postgres image with the aicol extension (make test-extension)",
+    "extension: needs the Postgres image with the pgbee extension (make test-extension)",
 ]
 addopts = "-m 'not llm and not extension'"

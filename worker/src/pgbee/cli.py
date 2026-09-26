@@ -1,4 +1,4 @@
-"""`aicol` command line: install the extension, run the worker, inspect derived columns."""
+"""`pgbee` command line: install the extension, run the worker, inspect derived columns."""
 
 from __future__ import annotations
 
@@ -13,12 +13,12 @@ import structlog
 import typer
 from psycopg.rows import dict_row
 
-from aicol import extension
-from aicol.db import Contract
-from aicol.installer import InstalledAsExtension, install
-from aicol.providers import OpenRouterProvider
-from aicol.settings import Settings, load_settings
-from aicol.worker import Worker
+from pgbee import extension
+from pgbee.db import Contract
+from pgbee.installer import InstalledAsExtension, install
+from pgbee.providers import OpenRouterProvider
+from pgbee.settings import Settings, load_settings
+from pgbee.worker import Worker
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
@@ -54,9 +54,9 @@ def install_cmd() -> None:
 
 @app.command("extension-files")
 def extension_files_cmd(
-    out_dir: Annotated[Path, typer.Argument(help="Where to write aicol.control and the scripts.")],
+    out_dir: Annotated[Path, typer.Argument(help="Where to write pgbee.control and the scripts.")],
 ) -> None:
-    """Write the files for CREATE EXTENSION aicol, to copy into `pg_config --sharedir`/extension."""
+    """Write the files for CREATE EXTENSION pgbee, to copy into `pg_config --sharedir`/extension."""
     for path in extension.build(out_dir):
         typer.echo(path)
 
@@ -71,7 +71,7 @@ def status_cmd() -> None:
             " c.enabled, c.pending, c.claimed, c.done, c.dead, c.stale, c.human_overrides,"
             " c.backfill_pending, c.backfill_scanned,"
             " b.budget_usd, b.budget_period, b.spent_usd, b.exhausted"
-            " FROM ai.columns c JOIN ai.budgets b ON b.column_def_id = c.id"
+            " FROM bee.columns c JOIN bee.budgets b ON b.column_def_id = c.id"
             " ORDER BY c.table_schema, c.table_name, c.column_name"
         ).fetchall()
     if not rows:

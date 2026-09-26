@@ -2,7 +2,7 @@
 """Compare models on the demo's urgency and category columns, using the extension's own versioning.
 
 Each model becomes a new version of the two columns; the worker recomputes every row; accuracy is
-measured against demo/gold.json from ai.result, cost and latency from ai.cost_by_column.
+measured against demo/gold.json from bee.result, cost and latency from bee.cost_by_column.
 
     cd worker && uv run python ../demo/compare_models.py [--yes] [--models a,b,c]
 
@@ -22,10 +22,10 @@ import psycopg
 from psycopg.rows import DictRow, dict_row
 from psycopg.types.json import Jsonb
 
-from aicol.db import Contract
-from aicol.providers import OpenRouterProvider
-from aicol.settings import load_settings
-from aicol.worker import Worker
+from pgbee.db import Contract
+from pgbee.providers import OpenRouterProvider
+from pgbee.settings import load_settings
+from pgbee.worker import Worker
 
 HERE = Path(__file__).resolve().parent
 COLUMNS = ("urgency", "category")
@@ -86,7 +86,7 @@ async def drain(worker: Worker, conn: psycopg.Connection[DictRow]) -> int:
         if stats.claimed:
             continue
         waiting = conn.execute(
-            "SELECT extract(epoch FROM min(next_attempt_at) - now()) AS s FROM ai.job WHERE status = 'pending'"
+            "SELECT extract(epoch FROM min(next_attempt_at) - now()) AS s FROM bee.job WHERE status = 'pending'"
         ).fetchone()
         if waiting is None or waiting["s"] is None:
             return total
@@ -98,7 +98,7 @@ def new_version(
 ) -> int:
     try:
         row = conn.execute(
-            "SELECT ai.update_column('ticket', %s, p_model => %s, p_backend_config => %s) AS v",
+            "SELECT bee.update_column('ticket', %s, p_model => %s, p_backend_config => %s) AS v",
             (column, model, Jsonb(cfg)),
         ).fetchone()
         assert row is not None
@@ -107,11 +107,11 @@ def new_version(
         if "nothing changed" not in str(exc):
             raise
         row = conn.execute(
-            "SELECT id, current_version_id AS v FROM ai.column_def WHERE table_name = 'ticket' AND column_name = %s AND deleted_at IS NULL",
+            "SELECT id, current_version_id AS v FROM bee.column_def WHERE table_name = 'ticket' AND column_name = %s AND deleted_at IS NULL",
             (column,),
         ).fetchone()
         assert row is not None
-        conn.execute("SELECT ai.backfill(%s)", (row["id"],))
+        conn.execute("SELECT bee.backfill(%s)", (row["id"],))
         return int(row["v"])
 
 
@@ -119,7 +119,7 @@ def score(
     conn: psycopg.Connection[DictRow], column: str, version_id: int, gold: dict[str, set[str]]
 ) -> dict[str, Any]:
     rows = conn.execute(
-        "SELECT row_pk ->> 'id' AS id, value, confidence FROM ai.result"
+        "SELECT row_pk ->> 'id' AS id, value, confidence FROM bee.result"
         " WHERE column_version_id = %s AND source = 'model' AND is_current",
         (version_id,),
     ).fetchall()
@@ -131,11 +131,11 @@ def score(
         if predicted.get(k) not in acceptable
     ]
     cost = conn.execute(
-        "SELECT results, prompt_tokens, completion_tokens, cost, avg_latency_ms FROM ai.cost_by_column WHERE column_version_id = %s",
+        "SELECT results, prompt_tokens, completion_tokens, cost, avg_latency_ms FROM bee.cost_by_column WHERE column_version_id = %s",
         (version_id,),
     ).fetchone()
     dead = conn.execute(
-        "SELECT count(*) AS n FROM ai.job j JOIN ai.column_def d ON d.id = j.column_def_id"
+        "SELECT count(*) AS n FROM bee.job j JOIN bee.column_def d ON d.id = j.column_def_id"
         " WHERE d.column_name = %s AND j.status = 'dead'",
         (column,),
     ).fetchone()
@@ -156,16 +156,16 @@ def declare_decision_columns(conn: psycopg.Connection[DictRow]) -> dict[str, int
     for column, (prompt, criteria) in DECISION_CRITERIA.items():
         name = f"{column}_jev"
         try:
-            conn.execute("SELECT ai.drop_column('ticket', %s, true)", (name,))
+            conn.execute("SELECT bee.drop_column('ticket', %s, true)", (name,))
         except psycopg.errors.UndefinedColumn:
             pass
         conn.execute(
-            "SELECT ai.add_column('ticket', %s, array['body'], 'enum', p_backend => 'decision',"
+            "SELECT bee.add_column('ticket', %s, array['body'], 'enum', p_backend => 'decision',"
             " p_prompt => %s, p_model => %s, p_output_schema => %s)",
             (name, prompt, DECISION_MODEL, Jsonb(criteria)),
         )
         row = conn.execute(
-            "SELECT current_version_id AS v FROM ai.column_def WHERE table_name = 'ticket'"
+            "SELECT current_version_id AS v FROM bee.column_def WHERE table_name = 'ticket'"
             " AND column_name = %s AND deleted_at IS NULL",
             (name,),
         ).fetchone()
@@ -195,7 +195,7 @@ async def run_decision(
             print("           miss: " + ", ".join(s["misses"]))
     calib = conn.execute(
         "SELECT round(avg(confidence)::numeric, 2) AS avg_conf, round(min(confidence)::numeric, 2) AS min_conf"
-        " FROM ai.result WHERE column_version_id = ANY(%s) AND is_current",
+        " FROM bee.result WHERE column_version_id = ANY(%s) AND is_current",
         (list(versions.values()),),
     ).fetchone()
     print(f"  confidenza media {calib['avg_conf']}, minima {calib['min_conf']}" if calib else "")
@@ -207,8 +207,8 @@ async def run(models: list[tuple[str, dict[str, Any]]], decision: bool) -> None:
     assert settings.openrouter_api_key is not None
     conn = psycopg.connect(settings.database_url, autocommit=True, row_factory=dict_row)
     gold = load_gold()
-    conn.execute("SELECT ai.unpin('ticket', 'urgency', '{\"id\": 12}')")
-    conn.execute("DELETE FROM ai.job WHERE status = 'dead'")
+    conn.execute("SELECT bee.unpin('ticket', 'urgency', '{\"id\": 12}')")
+    conn.execute("DELETE FROM bee.job WHERE status = 'dead'")
 
     contract = await Contract.connect(settings.database_url)
     provider = OpenRouterProvider(settings.openrouter_api_key, settings.openrouter_base_url)
@@ -232,7 +232,7 @@ async def run(models: list[tuple[str, dict[str, Any]]], decision: bool) -> None:
             )
             if s["misses"]:
                 print("           miss: " + ", ".join(s["misses"]))
-        conn.execute("DELETE FROM ai.job WHERE status = 'dead'")
+        conn.execute("DELETE FROM bee.job WHERE status = 'dead'")
 
     await contract.close()
 

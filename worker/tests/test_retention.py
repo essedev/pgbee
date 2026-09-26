@@ -9,7 +9,7 @@ from test_extension import add_urgency, claim, complete, scalar
 
 
 def prune(conn: psycopg.Connection[DictRow], limit: int = 10000) -> dict[str, int]:
-    row = conn.execute("SELECT results, jobs FROM ai.prune(%s)", (limit,)).fetchone()
+    row = conn.execute("SELECT results, jobs FROM bee.prune(%s)", (limit,)).fetchone()
     assert row is not None
     return dict(row)
 
@@ -18,18 +18,18 @@ def recompute_twice(conn: psycopg.Connection[DictRow]) -> None:
     """Three rows computed, then recomputed by a new version: three superseded results."""
     for job in claim(conn):
         complete(conn, job, "low")
-    conn.execute("SELECT ai.update_column('ticket', 'urgency', p_prompt => 'v2')")
+    conn.execute("SELECT bee.update_column('ticket', 'urgency', p_prompt => 'v2')")
     for job in claim(conn):
         complete(conn, job, "medium")
 
 
 def age(conn: psycopg.Connection[DictRow], days: int) -> None:
     conn.execute(
-        "UPDATE ai.result SET created_at = now() - make_interval(days => %s) WHERE NOT is_current",
+        "UPDATE bee.result SET created_at = now() - make_interval(days => %s) WHERE NOT is_current",
         (days,),
     )
     conn.execute(
-        "UPDATE ai.job SET updated_at = now() - make_interval(days => %s) WHERE status = 'done'",
+        "UPDATE bee.job SET updated_at = now() - make_interval(days => %s) WHERE status = 'done'",
         (days,),
     )
 
@@ -41,7 +41,7 @@ def test_without_retention_everything_is_kept(
     recompute_twice(conn)
     age(conn, 400)
     assert prune(conn) == {"results": 0, "jobs": 6}, "done jobs go after a week anyway"
-    assert scalar(conn, "SELECT count(*) FROM ai.result") == 6
+    assert scalar(conn, "SELECT count(*) FROM bee.result") == 6
 
 
 def test_retention_deletes_only_old_superseded_results(
@@ -53,14 +53,14 @@ def test_retention_deletes_only_old_superseded_results(
     age(conn, 5)
     assert prune(conn) == {"results": 0, "jobs": 0}, "younger than both retentions"
     age(conn, 31)
-    spent_before = scalar(conn, "SELECT sum(cost) FROM ai.spend")
+    spent_before = scalar(conn, "SELECT sum(cost) FROM bee.spend")
     assert prune(conn) == {"results": 4, "jobs": 6}
     current = conn.execute(
-        "SELECT source, count(*) AS n FROM ai.result GROUP BY source ORDER BY source"
+        "SELECT source, count(*) AS n FROM bee.result GROUP BY source ORDER BY source"
     ).fetchall()
     assert current == [{"source": "model", "n": 2}, {"source": "human", "n": 1}]
-    assert scalar(conn, "SELECT count(*) FROM ai.result WHERE NOT is_current") == 0
-    assert scalar(conn, "SELECT sum(cost) FROM ai.spend") == spent_before, "spend is kept"
+    assert scalar(conn, "SELECT count(*) FROM bee.result WHERE NOT is_current") == 0
+    assert scalar(conn, "SELECT sum(cost) FROM bee.spend") == spent_before, "spend is kept"
     assert scalar(conn, "SELECT urgency FROM ticket WHERE id = 1") == "high"
 
 
@@ -76,8 +76,8 @@ def test_prune_works_in_bounded_batches(conn: psycopg.Connection[DictRow], ticke
 def test_dead_jobs_are_kept(conn: psycopg.Connection[DictRow], ticket: str) -> None:
     add_urgency(conn)
     for job in claim(conn):
-        conn.execute("SELECT ai.fail_job(%s::bigint, 'boom', false)", (job["job_id"],))
-    conn.execute("UPDATE ai.job SET updated_at = now() - interval '30 days'")
+        conn.execute("SELECT bee.fail_job(%s::bigint, 'boom', false)", (job["job_id"],))
+    conn.execute("UPDATE bee.job SET updated_at = now() - interval '30 days'")
     assert prune(conn) == {"results": 0, "jobs": 0}
 
 

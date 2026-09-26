@@ -10,8 +10,8 @@ from typing import Any, Protocol
 import httpx2 as httpx
 import openai
 
-from aicol.jobs import Job
-from aicol.schema import enum_values, response_schema, validate_response
+from pgbee.jobs import Job
+from pgbee.schema import enum_values, response_schema, validate_response
 
 SYSTEM_PROMPT = (
     "You derive one value for a database column from the data of one row. "
@@ -55,7 +55,7 @@ class Provider(Protocol):
 
 
 class ProviderError(Exception):
-    """A failure the worker reports to ai.fail_job. `retryable` decides between backoff and dead."""
+    """A failure reported to bee.fail_job. `retryable` decides between backoff and dead."""
 
     def __init__(self, message: str, *, retryable: bool, rate_limited: bool = False) -> None:
         super().__init__(message)
@@ -155,7 +155,7 @@ class OpenRouterProvider:
     """OpenRouter via the OpenAI SDK for chat and embeddings, plain HTTP for decisions."""
 
     def __init__(self, api_key: str, base_url: str, timeout: float = 60.0) -> None:
-        headers = {"HTTP-Referer": "https://github.com/essedev/ai-db", "X-Title": "ai-db"}
+        headers = {"HTTP-Referer": "https://github.com/essedev/pgbee", "X-Title": "pgbee"}
         self._client = openai.AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,

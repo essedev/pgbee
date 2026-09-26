@@ -1,21 +1,21 @@
--- ai-db 0005: spending cap per derived column.
+-- pgbee 0005: spending cap per derived column.
 -- Spend is counted per day from the usage the worker reports (usage.cost in USD) and checked by
 -- claim_jobs: a column whose budget for the current period is used up gets no more jobs claimed.
 
-CREATE TABLE IF NOT EXISTS ai.spend (
-  column_def_id bigint NOT NULL REFERENCES ai.column_def (id),
+CREATE TABLE IF NOT EXISTS bee.spend (
+  column_def_id bigint NOT NULL REFERENCES bee.column_def (id),
   day           date NOT NULL,
   cost          numeric NOT NULL DEFAULT 0,
   results       bigint NOT NULL DEFAULT 0,
   PRIMARY KEY (column_def_id, day)
 );
-COMMENT ON TABLE ai.spend IS
+COMMENT ON TABLE bee.spend IS
   'Model spend per derived column per UTC day, fed by every model result (discarded ones too: they were paid). Kept when lineage is pruned.';
 
-CREATE OR REPLACE FUNCTION ai._count_spend() RETURNS trigger
+CREATE OR REPLACE FUNCTION bee._count_spend() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-  INSERT INTO ai.spend AS s (column_def_id, day, cost, results)
+  INSERT INTO bee.spend AS s (column_def_id, day, cost, results)
   VALUES (NEW.column_def_id, (NEW.created_at AT TIME ZONE 'UTC')::date,
           coalesce((NEW.usage ->> 'cost')::numeric, 0), 1)
   ON CONFLICT (column_def_id, day)
@@ -23,19 +23,19 @@ BEGIN
   RETURN NULL;
 END $$;
 
-DROP TRIGGER IF EXISTS ai_count_spend ON ai.result;
-CREATE TRIGGER ai_count_spend AFTER INSERT ON ai.result
-FOR EACH ROW WHEN (NEW.source = 'model') EXECUTE FUNCTION ai._count_spend();
+DROP TRIGGER IF EXISTS bee_count_spend ON bee.result;
+CREATE TRIGGER bee_count_spend AFTER INSERT ON bee.result
+FOR EACH ROW WHEN (NEW.source = 'model') EXECUTE FUNCTION bee._count_spend();
 
-INSERT INTO ai.spend (column_def_id, day, cost, results)
+INSERT INTO bee.spend (column_def_id, day, cost, results)
 SELECT column_def_id, (created_at AT TIME ZONE 'UTC')::date,
        coalesce(sum((usage ->> 'cost')::numeric), 0), count(*)
-FROM ai.result
+FROM bee.result
 WHERE source = 'model'
 GROUP BY 1, 2
 ON CONFLICT DO NOTHING;
 
-CREATE OR REPLACE FUNCTION ai._period_start(p_period text) RETURNS date
+CREATE OR REPLACE FUNCTION bee._period_start(p_period text) RETURNS date
 LANGUAGE plpgsql STABLE AS $$
 DECLARE
   today date := (now() AT TIME ZONE 'UTC')::date;
@@ -47,24 +47,24 @@ BEGIN
   END;
 END $$;
 
-CREATE OR REPLACE FUNCTION ai.spent(p_def_id bigint, p_period text DEFAULT 'total') RETURNS numeric
+CREATE OR REPLACE FUNCTION bee.spent(p_def_id bigint, p_period text DEFAULT 'total') RETURNS numeric
 LANGUAGE sql STABLE AS $$
-  SELECT coalesce(sum(cost), 0) FROM ai.spend
-  WHERE column_def_id = p_def_id AND day >= ai._period_start(p_period);
+  SELECT coalesce(sum(cost), 0) FROM bee.spend
+  WHERE column_def_id = p_def_id AND day >= bee._period_start(p_period);
 $$;
-COMMENT ON FUNCTION ai.spent(bigint, text) IS
+COMMENT ON FUNCTION bee.spent(bigint, text) IS
   'USD spent by a derived column in the current UTC day, month, or in total.';
 
-CREATE OR REPLACE FUNCTION ai._over_budget(p_def_id bigint, p_config jsonb) RETURNS boolean
+CREATE OR REPLACE FUNCTION bee._over_budget(p_def_id bigint, p_config jsonb) RETURNS boolean
 LANGUAGE sql STABLE AS $$
   SELECT CASE
     WHEN jsonb_typeof(p_config -> 'budget_usd') IS DISTINCT FROM 'number' THEN false
-    ELSE ai.spent(p_def_id, coalesce(p_config ->> 'budget_period', 'month'))
+    ELSE bee.spent(p_def_id, coalesce(p_config ->> 'budget_period', 'month'))
          >= (p_config ->> 'budget_usd')::numeric
   END;
 $$;
 
-CREATE OR REPLACE FUNCTION ai._default_config() RETURNS jsonb
+CREATE OR REPLACE FUNCTION bee._default_config() RETURNS jsonb
 LANGUAGE sql IMMUTABLE AS $$
   SELECT '{
     "batch_size": 20,
@@ -79,51 +79,51 @@ LANGUAGE sql IMMUTABLE AS $$
   }'::jsonb;
 $$;
 
-CREATE OR REPLACE FUNCTION ai._validate_config() RETURNS trigger
+CREATE OR REPLACE FUNCTION bee._validate_config() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
   budget jsonb := NEW.config -> 'budget_usd';
 BEGIN
   IF budget IS NOT NULL AND jsonb_typeof(budget) <> 'null'
      AND (jsonb_typeof(budget) <> 'number' OR (budget #>> '{}')::numeric < 0) THEN
-    RAISE EXCEPTION 'ai: budget_usd must be a number >= 0 (USD) or null for no cap, got %', budget;
+    RAISE EXCEPTION 'bee: budget_usd must be a number >= 0 (USD) or null for no cap, got %', budget;
   END IF;
   IF NEW.config ? 'budget_period'
      AND NOT coalesce(NEW.config ->> 'budget_period' = ANY (ARRAY['day', 'month', 'total']), false) THEN
-    RAISE EXCEPTION 'ai: budget_period must be day, month or total, got %', NEW.config -> 'budget_period';
+    RAISE EXCEPTION 'bee: budget_period must be day, month or total, got %', NEW.config -> 'budget_period';
   END IF;
   RETURN NEW;
 END $$;
 
-DROP TRIGGER IF EXISTS ai_validate_config ON ai.column_def;
-CREATE TRIGGER ai_validate_config BEFORE INSERT OR UPDATE OF config ON ai.column_def
-FOR EACH ROW EXECUTE FUNCTION ai._validate_config();
+DROP TRIGGER IF EXISTS bee_validate_config ON bee.column_def;
+CREATE TRIGGER bee_validate_config BEFORE INSERT OR UPDATE OF config ON bee.column_def
+FOR EACH ROW EXECUTE FUNCTION bee._validate_config();
 
 -- configure now wakes the workers: raising a budget (or the batch size) takes effect at once.
-CREATE OR REPLACE FUNCTION ai.configure(p_table regclass, p_column text, p_config jsonb) RETURNS jsonb
+CREATE OR REPLACE FUNCTION bee.configure(p_table regclass, p_column text, p_config jsonb) RETURNS jsonb
 LANGUAGE plpgsql AS $$
 DECLARE
-  def ai.column_def;
+  def bee.column_def;
   merged jsonb;
 BEGIN
-  def := ai._find_def(p_table, p_column);
-  UPDATE ai.column_def SET config = config || p_config, updated_at = now()
+  def := bee._find_def(p_table, p_column);
+  UPDATE bee.column_def SET config = config || p_config, updated_at = now()
   WHERE id = def.id RETURNING config INTO merged;
-  PERFORM pg_notify('ai_jobs', def.id::text);
+  PERFORM pg_notify('bee_jobs', def.id::text);
   RETURN merged;
 END $$;
-COMMENT ON FUNCTION ai.configure(regclass, text, jsonb) IS
+COMMENT ON FUNCTION bee.configure(regclass, text, jsonb) IS
   'Merge operational settings (batch_size, max_attempts, backoff_base_seconds, confidence_threshold, low_confidence_policy, override_policy, concurrency, budget_usd, budget_period) without creating a version.';
 
-CREATE OR REPLACE FUNCTION ai.claim_jobs(p_worker_id text, p_batch_size integer DEFAULT 20, p_backends ai.backend[] DEFAULT NULL)
+CREATE OR REPLACE FUNCTION bee.claim_jobs(p_worker_id text, p_batch_size integer DEFAULT 20, p_backends bee.backend[] DEFAULT NULL)
 RETURNS TABLE (
   job_id bigint,
   column_def_id bigint,
   column_version_id bigint,
-  backend ai.backend,
+  backend bee.backend,
   model text,
   prompt text,
-  output_type ai.output_type,
+  output_type bee.output_type,
   output_schema jsonb,
   backend_config jsonb,
   config jsonb,
@@ -135,28 +135,28 @@ RETURNS TABLE (
 LANGUAGE plpgsql AS $$
 DECLARE
   j record;
-  def ai.column_def;
+  def bee.column_def;
   src jsonb;
 BEGIN
   FOR j IN
     WITH open_defs AS (
       -- Budget checked once per definition, not per job.
       SELECT d.id
-      FROM ai.column_def d
-      JOIN ai.column_version v ON v.id = d.current_version_id
+      FROM bee.column_def d
+      JOIN bee.column_version v ON v.id = d.current_version_id
       WHERE d.enabled AND d.deleted_at IS NULL
         AND (p_backends IS NULL OR v.backend = ANY (p_backends))
-        AND NOT ai._over_budget(d.id, d.config)
+        AND NOT bee._over_budget(d.id, d.config)
     ), picked AS (
       SELECT jb.id
-      FROM ai.job jb
+      FROM bee.job jb
       JOIN open_defs od ON od.id = jb.column_def_id
       WHERE jb.status = 'pending' AND jb.next_attempt_at <= now()
       ORDER BY jb.next_attempt_at, jb.id
       LIMIT p_batch_size
       FOR UPDATE OF jb SKIP LOCKED
     ), claimed AS (
-      UPDATE ai.job jb
+      UPDATE bee.job jb
       SET status = 'claimed', claimed_by = p_worker_id, claimed_at = now(),
           attempts = jb.attempts + 1, updated_at = now()
       FROM picked
@@ -167,17 +167,17 @@ BEGIN
            v.id AS version_id, v.backend, v.model, v.prompt, v.output_schema, v.backend_config,
            d.output_type, d.config
     FROM claimed c
-    JOIN ai.column_def d ON d.id = c.column_def_id
-    JOIN ai.column_version v ON v.id = d.current_version_id
+    JOIN bee.column_def d ON d.id = c.column_def_id
+    JOIN bee.column_version v ON v.id = d.current_version_id
   LOOP
-    SELECT * INTO def FROM ai.column_def WHERE id = j.column_def_id;
+    SELECT * INTO def FROM bee.column_def WHERE id = j.column_def_id;
     EXECUTE format(
       'SELECT (SELECT jsonb_object_agg(k, to_jsonb(t) -> k) FROM unnest($2) AS k) FROM %I.%I t WHERE %s',
-      def.table_schema, def.table_name, ai._pk_where(def))
+      def.table_schema, def.table_name, bee._pk_where(def))
     INTO src USING j.row_pk, def.source_columns;
     IF src IS NULL THEN
       -- The source row is gone: nothing left to compute.
-      DELETE FROM ai.job WHERE id = j.id;
+      DELETE FROM bee.job WHERE id = j.id;
       CONTINUE;
     END IF;
     job_id := j.id;
@@ -197,19 +197,19 @@ BEGIN
     RETURN NEXT;
   END LOOP;
 END $$;
-COMMENT ON FUNCTION ai.claim_jobs(text, integer, ai.backend[]) IS
+COMMENT ON FUNCTION bee.claim_jobs(text, integer, bee.backend[]) IS
   'Worker contract. Lock up to batch_size ready jobs (SKIP LOCKED), mark them claimed and return each with its source values and current version. Optionally restricted to some backends. Columns over budget are skipped.';
 
-CREATE OR REPLACE VIEW ai.budgets AS
+CREATE OR REPLACE VIEW bee.budgets AS
 SELECT d.id AS column_def_id, d.table_schema, d.table_name, d.column_name,
-       b.budget_usd, b.budget_period, b.spent_usd, ai.spent(d.id, 'total') AS spent_total_usd,
+       b.budget_usd, b.budget_period, b.spent_usd, bee.spent(d.id, 'total') AS spent_total_usd,
        b.budget_usd - b.spent_usd AS remaining_usd,
        coalesce(b.spent_usd >= b.budget_usd, false) AS exhausted
-FROM ai.column_def d
+FROM bee.column_def d
 CROSS JOIN LATERAL (
   SELECT CASE WHEN jsonb_typeof(d.config -> 'budget_usd') = 'number'
               THEN (d.config ->> 'budget_usd')::numeric END AS budget_usd,
          coalesce(d.config ->> 'budget_period', 'month') AS budget_period,
-         ai.spent(d.id, coalesce(d.config ->> 'budget_period', 'month')) AS spent_usd
+         bee.spent(d.id, coalesce(d.config ->> 'budget_period', 'month')) AS spent_usd
 ) b
 WHERE d.deleted_at IS NULL;

@@ -1,24 +1,24 @@
--- ai-db 0010: make the extension survive pg_dump and pg_restore.
--- Two things broke a restore of aicol as an extension, where the config tables and their
+-- pgbee 0010: make the extension survive pg_dump and pg_restore.
+-- Two things broke a restore of pgbee as an extension, where the config tables and their
 -- triggers exist before pg_restore loads the data:
 -- 1. The foreign key from column_def.current_version_id to column_version.
 --    column_version.column_def_id already points the other way, and the cycle breaks pg_restore:
 --    whichever table is loaded first violates its key. current_version_id is written only by
 --    add_column and update_column, always to a version they have just inserted for the same column.
--- 2. The trigger counting spend on every insert into ai.result: during the restore it recreated
---    the ai.spend rows that the dump also carries. Spend is now counted by complete_job, the only
+-- 2. The trigger counting spend on every insert into bee.result: during the restore it recreated
+--    the bee.spend rows that the dump also carries. Spend is now counted by complete_job, the only
 --    function that stores model results.
 
-ALTER TABLE ai.column_def DROP CONSTRAINT IF EXISTS column_def_current_version_fk;
-COMMENT ON COLUMN ai.column_def.current_version_id IS
-  'Current ai.column_version of this column. No foreign key (it would form a cycle with column_version.column_def_id and break pg_restore of the extension); only add_column and update_column write it.';
+ALTER TABLE bee.column_def DROP CONSTRAINT IF EXISTS column_def_current_version_fk;
+COMMENT ON COLUMN bee.column_def.current_version_id IS
+  'Current bee.column_version of this column. No foreign key (it would form a cycle with column_version.column_def_id and break pg_restore of the extension); only add_column and update_column write it.';
 
-DROP TRIGGER IF EXISTS ai_count_spend ON ai.result;
-DROP FUNCTION IF EXISTS ai._count_spend();
+DROP TRIGGER IF EXISTS bee_count_spend ON bee.result;
+DROP FUNCTION IF EXISTS bee._count_spend();
 
-CREATE OR REPLACE FUNCTION ai._add_spend(p_def_id bigint, p_usage jsonb) RETURNS void
+CREATE OR REPLACE FUNCTION bee._add_spend(p_def_id bigint, p_usage jsonb) RETURNS void
 LANGUAGE sql AS $$
-  INSERT INTO ai.spend AS s (column_def_id, day, cost, results)
+  INSERT INTO bee.spend AS s (column_def_id, day, cost, results)
   VALUES (p_def_id, (now() AT TIME ZONE 'UTC')::date, coalesce((p_usage ->> 'cost')::numeric, 0), 1)
   ON CONFLICT (column_def_id, day)
   DO UPDATE SET cost = s.cost + excluded.cost, results = s.results + 1;
@@ -26,7 +26,7 @@ $$;
 
 -- Same body as 0004 plus the spend count. SECURITY DEFINER and search_path repeated (0008):
 -- CREATE OR REPLACE resets them.
-CREATE OR REPLACE FUNCTION ai.complete_job(
+CREATE OR REPLACE FUNCTION bee.complete_job(
   p_job_id bigint,
   p_source_hash bytea,
   p_value jsonb,
@@ -35,41 +35,41 @@ CREATE OR REPLACE FUNCTION ai.complete_job(
   p_usage jsonb DEFAULT NULL,
   p_latency_ms integer DEFAULT NULL,
   p_details jsonb DEFAULT NULL
-) RETURNS ai.complete_outcome
+) RETURNS bee.complete_outcome
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
-  j ai.job;
-  def ai.column_def;
-  ver ai.column_version;
+  j bee.job;
+  def bee.column_def;
+  ver bee.column_version;
   v_value jsonb := p_value;
   v_written boolean := true;
   v_threshold real;
 BEGIN
-  SELECT * INTO j FROM ai.job WHERE id = p_job_id FOR UPDATE;
+  SELECT * INTO j FROM bee.job WHERE id = p_job_id FOR UPDATE;
   IF j.id IS NULL OR j.status <> 'claimed' THEN
     RETURN 'cancelled';
   END IF;
-  SELECT * INTO def FROM ai.column_def WHERE id = j.column_def_id;
-  SELECT * INTO ver FROM ai.column_version WHERE id = def.current_version_id;
+  SELECT * INTO def FROM bee.column_def WHERE id = j.column_def_id;
+  SELECT * INTO ver FROM bee.column_version WHERE id = def.current_version_id;
   IF v_value IS NOT NULL AND jsonb_typeof(v_value) = 'null' THEN
     v_value := NULL;
   END IF;
-  PERFORM ai._validate_value(def.output_type, ver.output_schema, v_value);
+  PERFORM bee._validate_value(def.output_type, ver.output_schema, v_value);
 
   IF j.source_hash <> p_source_hash THEN
-    INSERT INTO ai.result (column_def_id, column_version_id, row_pk, source_hash, value, confidence, source,
+    INSERT INTO bee.result (column_def_id, column_version_id, row_pk, source_hash, value, confidence, source,
                            is_current, written, model, usage, latency_ms, details)
     VALUES (def.id, ver.id, j.row_pk, p_source_hash, v_value, p_confidence, 'model',
             false, false, coalesce(p_model, ver.model), p_usage, p_latency_ms, p_details);
-    PERFORM ai._add_spend(def.id, p_usage);
-    UPDATE ai.job SET status = 'pending', claimed_by = NULL, claimed_at = NULL,
+    PERFORM bee._add_spend(def.id, p_usage);
+    UPDATE bee.job SET status = 'pending', claimed_by = NULL, claimed_at = NULL,
                       next_attempt_at = now(), updated_at = now()
     WHERE id = j.id;
     RETURN 'stale_requeued';
   END IF;
 
   IF def.deleted_at IS NOT NULL THEN
-    UPDATE ai.job SET status = 'done', updated_at = now() WHERE id = j.id;
+    UPDATE bee.job SET status = 'done', updated_at = now() WHERE id = j.id;
     RETURN 'cancelled';
   END IF;
 
@@ -80,21 +80,21 @@ BEGIN
   END IF;
 
   IF v_written THEN
-    PERFORM set_config('ai.writer', 'worker', true);
+    PERFORM set_config('bee.writer', 'worker', true);
     EXECUTE format('UPDATE %I.%I t SET %I = %s WHERE %s',
                    def.table_schema, def.table_name, def.column_name,
-                   ai._cast_expr(def.output_type, '$2'), ai._pk_where(def))
+                   bee._cast_expr(def.output_type, '$2'), bee._pk_where(def))
     USING j.row_pk, v_value;
-    PERFORM set_config('ai.writer', '', true);
+    PERFORM set_config('bee.writer', '', true);
   END IF;
 
-  UPDATE ai.result SET is_current = false
+  UPDATE bee.result SET is_current = false
   WHERE column_def_id = def.id AND row_pk = j.row_pk AND is_current;
-  INSERT INTO ai.result (column_def_id, column_version_id, row_pk, source_hash, value, confidence, source,
+  INSERT INTO bee.result (column_def_id, column_version_id, row_pk, source_hash, value, confidence, source,
                          is_current, written, model, usage, latency_ms, details)
   VALUES (def.id, ver.id, j.row_pk, p_source_hash, v_value, p_confidence, 'model',
           true, v_written, coalesce(p_model, ver.model), p_usage, p_latency_ms, p_details);
-  PERFORM ai._add_spend(def.id, p_usage);
-  UPDATE ai.job SET status = 'done', last_error = NULL, updated_at = now() WHERE id = j.id;
-  RETURN CASE WHEN v_written THEN 'written'::ai.complete_outcome ELSE 'held'::ai.complete_outcome END;
+  PERFORM bee._add_spend(def.id, p_usage);
+  UPDATE bee.job SET status = 'done', last_error = NULL, updated_at = now() WHERE id = j.id;
+  RETURN CASE WHEN v_written THEN 'written'::bee.complete_outcome ELSE 'held'::bee.complete_outcome END;
 END $$;

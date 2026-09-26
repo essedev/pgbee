@@ -16,13 +16,13 @@ db-down: ## Stop Postgres
 	docker compose -f demo/compose.yml down
 
 db-install: ## Apply sql/ to the database
-	cd worker && uv run aicol install
+	cd worker && uv run pgbee install
 
 worker: ## Run the worker loop
-	cd worker && uv run aicol run
+	cd worker && uv run pgbee run
 
 status: ## Show derived columns and queue state
-	cd worker && uv run aicol status
+	cd worker && uv run pgbee status
 
 demo: ## Seed the demo, declare derived columns, run the worker (asks before spending)
 	cd worker && uv run python ../demo/run.py --reset
@@ -48,20 +48,20 @@ check: ## Full quality pass (format, lint, typecheck, test)
 	$(MAKE) typecheck
 	$(MAKE) test
 
-worker-image: ## Build the worker image aicol-worker:dev (configuration from the environment only)
-	docker build -t aicol-worker:dev worker
+worker-image: ## Build the worker image pgbee-worker:dev (configuration from the environment only)
+	docker build -t pgbee-worker:dev worker
 
-extension-image: ## Build the Postgres image with CREATE EXTENSION aicol available (aicol-postgres:dev)
+extension-image: ## Build the Postgres image with CREATE EXTENSION pgbee available (pgbee-postgres:dev)
 	rm -rf worker/dist/extension
-	cd worker && uv run aicol extension-files dist/extension
-	docker build -f docker/postgres/Dockerfile -t aicol-postgres:dev worker/dist/extension
+	cd worker && uv run pgbee extension-files dist/extension
+	docker build -f docker/postgres/Dockerfile -t pgbee-postgres:dev worker/dist/extension
 
 test-extension: extension-image ## Extension tests (create, update chain, dump and restore) on a throwaway container, port 4463
-	docker rm -f aicol-ext-test >/dev/null 2>&1 || true
-	docker run -d --name aicol-ext-test -e POSTGRES_USER=aidb -e POSTGRES_PASSWORD=aidb \
-		-e POSTGRES_DB=aidb -p 4463:5432 aicol-postgres:dev >/dev/null
-	until docker exec aicol-ext-test pg_isready -U aidb -h localhost >/dev/null 2>&1; do sleep 1; done
-	cd worker && uv run pytest -m extension; status=$$?; docker rm -f aicol-ext-test >/dev/null; exit $$status
+	docker rm -f pgbee-ext-test >/dev/null 2>&1 || true
+	docker run -d --name pgbee-ext-test -e POSTGRES_USER=aidb -e POSTGRES_PASSWORD=aidb \
+		-e POSTGRES_DB=aidb -p 4463:5432 pgbee-postgres:dev >/dev/null
+	until docker exec pgbee-ext-test pg_isready -U aidb -h localhost >/dev/null 2>&1; do sleep 1; done
+	cd worker && uv run pytest -m extension; status=$$?; docker rm -f pgbee-ext-test >/dev/null; exit $$status
 
 build: ## Build the worker wheel and sdist (SQL files included) into worker/dist
 	cd worker && rm -rf dist && uv build

@@ -12,10 +12,10 @@ import psycopg
 import pytest
 from psycopg.rows import DictRow
 
-from aicol.db import Contract
-from aicol.providers import OpenRouterProvider
-from aicol.settings import load_settings
-from aicol.worker import Worker
+from pgbee.db import Contract
+from pgbee.providers import OpenRouterProvider
+from pgbee.settings import load_settings
+from pgbee.worker import Worker
 
 pytestmark = pytest.mark.llm
 
@@ -48,7 +48,7 @@ async def test_every_backend_fills_its_column_through_openrouter(
     provider: OpenRouterProvider,
 ) -> None:
     conn.execute(
-        "SELECT ai.add_column('ticket', 'urgency', array['body'], 'enum',"
+        "SELECT bee.add_column('ticket', 'urgency', array['body'], 'enum',"
         " p_prompt => 'How urgent is this support ticket?', p_model => %s,"
         " p_output_schema => %s::jsonb, p_backend_config => %s::jsonb)",
         (
@@ -58,12 +58,12 @@ async def test_every_backend_fills_its_column_through_openrouter(
         ),
     )
     conn.execute(
-        "SELECT ai.add_column('ticket', 'blocking', array['body'], 'boolean', 'decision',"
+        "SELECT bee.add_column('ticket', 'blocking', array['body'], 'boolean', 'decision',"
         " p_prompt => 'Is the customer unable to sell or get paid right now?', p_model => %s)",
         (DECISION_MODEL,),
     )
     conn.execute(
-        "SELECT ai.add_column('ticket', 'topic', array['body'], 'enum', 'decision',"
+        "SELECT bee.add_column('ticket', 'topic', array['body'], 'enum', 'decision',"
         " p_prompt => 'What is the ticket about?', p_model => %s, p_output_schema => %s::jsonb)",
         (
             DECISION_MODEL,
@@ -78,7 +78,7 @@ async def test_every_backend_fills_its_column_through_openrouter(
     )
     conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
     conn.execute(
-        "SELECT ai.add_column('ticket', 'embedding', array['body'], 'vector', 'embedding',"
+        "SELECT bee.add_column('ticket', 'embedding', array['body'], 'vector', 'embedding',"
         " p_model => %s, p_output_schema => '{\"dimensions\": 16}',"
         " p_backend_config => '{\"dimensions\": 16}')",
         (EMBEDDING_MODEL,),
@@ -86,7 +86,7 @@ async def test_every_backend_fills_its_column_through_openrouter(
     await drain(database_url, provider)
 
     jobs = conn.execute(
-        "SELECT status, count(*) AS n, max(last_error) AS error FROM ai.job GROUP BY status"
+        "SELECT status, count(*) AS n, max(last_error) AS error FROM bee.job GROUP BY status"
     ).fetchall()
     assert jobs == [{"status": "done", "n": 12, "error": None}]
 
@@ -100,7 +100,7 @@ async def test_every_backend_fills_its_column_through_openrouter(
     assert all(r["embedding"] is not None for r in rows)
 
     decision = conn.execute(
-        "SELECT r.confidence, r.details FROM ai.result r JOIN ai.column_def d"
+        "SELECT r.confidence, r.details FROM bee.result r JOIN bee.column_def d"
         " ON d.id = r.column_def_id WHERE d.column_name = 'blocking' AND r.row_pk = '{\"id\": 1}'"
     ).fetchone()
     assert decision is not None
@@ -108,7 +108,7 @@ async def test_every_backend_fills_its_column_through_openrouter(
     assert 0.5 <= decision["details"]["probability_true"] <= 1
     assert decision["details"]["questions_in_call"] == 2, "blocking and topic share the call"
 
-    costs = conn.execute("SELECT column_name, cost FROM ai.cost_by_column").fetchall()
+    costs = conn.execute("SELECT column_name, cost FROM bee.cost_by_column").fetchall()
     assert {c["column_name"] for c in costs} == {"urgency", "blocking", "topic", "embedding"}
     assert all(c["cost"] is not None and c["cost"] > 0 for c in costs)
 
@@ -120,12 +120,12 @@ async def test_unknown_model_kills_the_job_without_retrying(
     provider: OpenRouterProvider,
 ) -> None:
     conn.execute(
-        "SELECT ai.add_column('ticket', 'urgency', array['body'], 'enum',"
+        "SELECT bee.add_column('ticket', 'urgency', array['body'], 'enum',"
         " p_prompt => 'How urgent is this?', p_model => 'nobody/no-such-model',"
         ' p_output_schema => \'["low", "high"]\')'
     )
     await drain(database_url, provider)
-    jobs = conn.execute("SELECT status, attempts, last_error FROM ai.job").fetchall()
+    jobs = conn.execute("SELECT status, attempts, last_error FROM bee.job").fetchall()
     assert len(jobs) == 3
     assert all(j["status"] == "dead" and j["attempts"] == 1 for j in jobs)
     assert all(j["last_error"].startswith("provider 4") for j in jobs)

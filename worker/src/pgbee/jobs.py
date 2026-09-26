@@ -1,4 +1,4 @@
-"""Job payloads as returned by ai.claim_jobs, and the text the models see."""
+"""Job payloads as returned by bee.claim_jobs, and the text the models see."""
 
 from __future__ import annotations
 

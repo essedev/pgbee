@@ -12,11 +12,11 @@ from dataclasses import dataclass, field
 import psycopg
 import structlog
 
-from aicol.db import Contract
-from aicol.jobs import Job
-from aicol.providers import LlmResult, Provider, ProviderError, classify
+from pgbee.db import Contract
+from pgbee.jobs import Job
+from pgbee.providers import LlmResult, Provider, ProviderError, classify
 
-log = structlog.get_logger("aicol.worker")
+log = structlog.get_logger("pgbee.worker")
 
 
 @dataclass

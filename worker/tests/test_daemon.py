@@ -11,10 +11,10 @@ import psycopg
 from fakes import FakeProvider, add_urgency
 from psycopg.rows import DictRow
 
-from aicol.db import Contract
-from aicol.jobs import Job
-from aicol.providers import LlmResult, Provider, ProviderError
-from aicol.worker import Worker
+from pgbee.db import Contract
+from pgbee.jobs import Job
+from pgbee.providers import LlmResult, Provider, ProviderError
+from pgbee.worker import Worker
 
 
 async def wait_until(check: Callable[[], bool], limit: float = 5.0) -> float:
@@ -100,7 +100,7 @@ async def test_stop_lets_the_current_batch_finish(
     await shutdown(worker, contract, task)
     counts = conn.execute(
         "SELECT count(*) FILTER (WHERE status = 'claimed') AS claimed,"
-        " count(*) FILTER (WHERE status = 'done') AS done FROM ai.job"
+        " count(*) FILTER (WHERE status = 'done') AS done FROM bee.job"
     ).fetchone()
     assert counts == {"claimed": 0, "done": 3}
 
@@ -109,9 +109,9 @@ async def test_daemon_reclaims_jobs_abandoned_by_a_dead_worker(
     database_url: str, conn: psycopg.Connection[DictRow], ticket: str
 ) -> None:
     add_urgency(conn)
-    claimed = conn.execute("SELECT count(*) AS n FROM ai.claim_jobs('crashed', 10)").fetchone()
+    claimed = conn.execute("SELECT count(*) AS n FROM bee.claim_jobs('crashed', 10)").fetchone()
     assert claimed == {"n": 3}
-    conn.execute("UPDATE ai.job SET claimed_at = now() - interval '10 minutes'")
+    conn.execute("UPDATE bee.job SET claimed_at = now() - interval '10 minutes'")
     worker, contract, task = await start(
         database_url, FakeProvider(), poll_interval=0.2, claim_timeout_seconds=60
     )
@@ -131,7 +131,7 @@ async def test_stop_interrupts_the_rate_limit_pause(
     started = time.monotonic()
     await shutdown(worker, contract, task)
     assert time.monotonic() - started < 2
-    pending = conn.execute("SELECT count(*) AS n FROM ai.job WHERE status = 'pending'").fetchone()
+    pending = conn.execute("SELECT count(*) AS n FROM bee.job WHERE status = 'pending'").fetchone()
     assert pending == {"n": 3}, "rate limited jobs go back to the queue with backoff"
 
 
@@ -157,9 +157,9 @@ async def test_daemon_prunes_on_start_and_every_interval(
     )
     try:
         await wait_until(lambda: filled(conn, 3))
-        conn.execute("UPDATE ai.job SET updated_at = now() - interval '8 days'")
+        conn.execute("UPDATE bee.job SET updated_at = now() - interval '8 days'")
         await wait_until(
-            lambda: conn.execute("SELECT count(*) AS n FROM ai.job").fetchone() == {"n": 0}
+            lambda: conn.execute("SELECT count(*) AS n FROM bee.job").fetchone() == {"n": 0}
         )
     finally:
         await shutdown(worker, contract, task)
@@ -172,7 +172,7 @@ async def test_failed_maintenance_does_not_stop_the_queue(
     worker, contract, task = await start(database_url, FakeProvider(), poll_interval=30)
 
     async def broken(limit: int) -> tuple[int, int]:
-        raise psycopg.errors.UndefinedFunction("function ai.prune(integer) does not exist")
+        raise psycopg.errors.UndefinedFunction("function bee.prune(integer) does not exist")
 
     contract.prune = broken  # type: ignore[method-assign]
     try:

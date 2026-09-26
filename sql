@@ -1,1 +1,1 @@
-worker/src/aicol/sql
+worker/src/pgbee/sql

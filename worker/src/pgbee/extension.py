@@ -1,29 +1,29 @@
-"""Build the files for `CREATE EXTENSION aicol` from the same versioned SQL files the installer
+"""Build the files for `CREATE EXTENSION pgbee` from the same versioned SQL files the installer
 applies, so the two ways of installing cannot drift apart.
 
-Version 0.N is file NNNN: `aicol--0.1.sql` is file 0001 and every later file becomes an update
-script `aicol--0.(N-1)--0.N.sql`. Postgres chains them, both on a fresh CREATE EXTENSION and on
-ALTER EXTENSION aicol UPDATE.
+Version 0.N is file NNNN: `pgbee--0.1.sql` is file 0001 and every later file becomes an update
+script `pgbee--0.(N-1)--0.N.sql`. Postgres chains them, both on a fresh CREATE EXTENSION and on
+ALTER EXTENSION pgbee UPDATE.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from aicol.installer import SqlFile, sql_files
+from pgbee.installer import SqlFile, sql_files
 
-NAME = "aicol"
+NAME = "pgbee"
 COMMENT = "Derived columns computed by models: queue, versions, lineage, human overrides, budgets"
 
 GUARD = (
-    '\\echo Use "CREATE EXTENSION aicol" or "ALTER EXTENSION aicol UPDATE" to load this file.'
+    '\\echo Use "CREATE EXTENSION pgbee" or "ALTER EXTENSION pgbee UPDATE" to load this file.'
     " \\quit\n"
 )
 
 # Tables and sequences of the extension hold user data (definitions, jobs, lineage, spend):
 # pg_dump must dump their rows. schema_version is left out because the scripts fill it.
 CONFIG_DUMP = """
-DO $aicol$
+DO $pgbee$
 DECLARE
   r record;
 BEGIN
@@ -33,14 +33,14 @@ BEGIN
     JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
     JOIN pg_catalog.pg_depend d ON d.classid = 'pg_catalog.pg_class'::regclass AND d.objid = c.oid
                                AND d.deptype = 'e'
-    JOIN pg_catalog.pg_extension e ON e.oid = d.refobjid AND e.extname = 'aicol'
-    WHERE n.nspname = 'ai' AND c.relkind IN ('r', 'S')
+    JOIN pg_catalog.pg_extension e ON e.oid = d.refobjid AND e.extname = 'pgbee'
+    WHERE n.nspname = 'bee' AND c.relkind IN ('r', 'S')
       AND c.relname <> 'schema_version'
       AND NOT (c.oid = ANY (coalesce(e.extconfig, '{}')))
   LOOP
     PERFORM pg_catalog.pg_extension_config_dump(r.rel, '');
   END LOOP;
-END $aicol$;
+END $pgbee$;
 """
 
 
@@ -52,7 +52,7 @@ def script(sql_file: SqlFile) -> str:
     body = sql_file.path.read_text(encoding="utf-8")
     return (
         f"{GUARD}\n{body.rstrip()}\n{CONFIG_DUMP}\n"
-        f"INSERT INTO ai.schema_version (version) VALUES ({sql_file.version});\n"
+        f"INSERT INTO bee.schema_version (version) VALUES ({sql_file.version});\n"
     )
 
 
