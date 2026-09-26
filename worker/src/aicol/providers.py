@@ -95,6 +95,10 @@ class OpenRouterProvider:
             params["temperature"] = float(job.backend_config["temperature"])
         if "max_tokens" in job.backend_config:
             params["max_completion_tokens"] = int(job.backend_config["max_tokens"])
+        extra_body: dict[str, Any] = {"usage": {"include": True}}
+        if "reasoning" in job.backend_config:
+            # OpenRouter unified reasoning control, e.g. {"effort": "low"} or {"enabled": false}.
+            extra_body["reasoning"] = job.backend_config["reasoning"]
         response = await self._client.chat.completions.create(
             model=job.model,
             messages=[
@@ -109,7 +113,7 @@ class OpenRouterProvider:
                     "schema": response_schema(job.output_type, job.output_schema),
                 },
             },
-            extra_body={"usage": {"include": True}},
+            extra_body=extra_body,
             **params,
         )
         latency_ms = int((time.monotonic() - started) * 1000)

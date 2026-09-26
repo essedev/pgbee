@@ -269,7 +269,7 @@ async def run(args: argparse.Namespace) -> None:
         " AND r.column_def_id = (SELECT id FROM ai.columns WHERE column_name = 'urgency')"
         " ORDER BY t.id",
     )
-    print("  (la riga 10 è rimasta 'low' con source = human e nessuna versione)")
+    print("  (la riga 12 è rimasta 'high' con source = human e nessuna versione)")
 
     if not args.skip_embedding:
         say("7. Ticket simili a quello nuovo, con l'embedding mantenuto dalla stessa coda")

@@ -517,9 +517,9 @@ def test_composite_and_uuid_primary_keys(conn: psycopg.Connection[DictRow]) -> N
 
 
 def test_installer_is_idempotent(database_url: str) -> None:
-    from aicol.installer import install
+    from aicol.installer import install, sql_files
 
     with psycopg.connect(database_url) as c:
         assert install(c) == []
-        versions = c.execute("SELECT version FROM ai.schema_version").fetchall()
-        assert versions == [(1,)]
+        versions = c.execute("SELECT version FROM ai.schema_version ORDER BY version").fetchall()
+        assert [v[0] for v in versions] == [f.version for f in sql_files()]
