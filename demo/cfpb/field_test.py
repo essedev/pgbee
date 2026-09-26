@@ -7,6 +7,8 @@ the consumer chose, confidence calibration, cost per 1000 rows, throughput and f
     cd worker && uv run python ../demo/cfpb/field_test.py --limit 60      # cost probe
     cd worker && uv run python ../demo/cfpb/field_test.py                 # all 3000 rows
 
+It prints the estimate and asks before spending; --yes skips the question.
+
 The gold label is noisy: consumers pick the product themselves and sometimes pick wrong.
 Every run recreates the database aidb_cfpb. Results go to demo/cfpb/results[-N].json.
 """
@@ -60,6 +62,8 @@ PRODUCT_PROMPT = (
     "Which financial product is this consumer complaint about? "
     "Pick the product the complaint is mainly about."
 )
+# Measured on the full run (results.json): 0.41 USD for 3000 rows and four columns.
+COST_PER_ROW_USD = 0.000136
 # Safety caps per column (USD, per month): far above the expected spend of a full run.
 BUDGETS = {"product_llm": 1.0, "product_jev": 0.5, "money_lost": 0.5, "embedding": 0.2}
 
@@ -251,11 +255,19 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, help="Use only the first N complaints.")
     parser.add_argument("--timeout", type=float, default=3600, help="Seconds before giving up.")
+    parser.add_argument("--yes", action="store_true", help="Do not ask before spending.")
     args = parser.parse_args()
     settings = load_settings()
     if not settings.openrouter_api_key:
         sys.exit("OPENROUTER_API_KEY is not set")
     rows = load_sample(args.limit)
+    estimate = len(rows) * COST_PER_ROW_USD
+    print(
+        f"Estimate: {len(rows)} complaints x 4 columns, about {estimate:.2f} USD"
+        f" (measured {COST_PER_ROW_USD * 1000:.3f} USD per 1000 rows), capped by the column budgets"
+    )
+    if not args.yes and input("Proceed? [y/N] ").strip().lower() != "y":
+        sys.exit("not run")
     url = db_url(settings.database_url)
     print(f"== {len(rows)} complaints into {DB_NAME}, four derived columns")
     prepare(url, rows, settings.database_url)

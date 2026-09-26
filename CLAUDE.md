@@ -37,6 +37,6 @@ Vedi `docs/CONVENTIONS.md`. Le regole per i file SQL sono in `.claude/rules/sql-
 - Alcuni modelli rifiutano `reasoning.enabled = false` con un 400 (GLM 5.3 Flash): usare `effort: low`. I job finiscono `dead` correttamente, non è un bug del worker.
 - `test_roles.py` crea ruoli di cluster (`pgbee_test_worker`, `pgbee_test_app`) e li droppa a fine modulo; `bee_worker` resta nel cluster, è creato dall'install.
 - Test che chiamano un modello vero portano il marker `llm`, escluso dal giro di default.
-- Costi: ogni batch verso OpenRouter costa. `demo/run.py` stampa la stima e chiede conferma; con `--yes` non chiede. Prima di lanciarla su più di qualche decina di righe, dichiarare la stima.
+- Costi: ogni batch verso OpenRouter costa. `demo/run.py` e `demo/cfpb/field_test.py` (0.41 USD per 3000 righe) stampano la stima e chiedono conferma; con `--yes` non chiedono. Prima di lanciarla su più di qualche decina di righe, dichiarare la stima.
 - L'SDK `openai` 3.x usa il pacchetto `httpx2`, non `httpx`: nei test le eccezioni si costruiscono con `httpx2.Request` e `httpx2.Response`.
 - La demo si lancia dalla cartella `worker` (`make demo`) perché importa il pacchetto `pgbee`.
