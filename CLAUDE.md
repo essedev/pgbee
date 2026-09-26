@@ -29,7 +29,7 @@ Vedi `docs/CONVENTIONS.md`. Le regole per i file SQL sono in `.claude/rules/sql-
 ## Gotcha
 
 - Il worker non deve mai contenere SQL su tabelle dell'utente: passa solo dalle funzioni e viste dello schema `ai`. Se serve leggere una tabella utente, la funzione va aggiunta all'estensione.
-- Le funzioni del contratto worker (`ai.claim_jobs`, `ai.complete_job`, `ai.fail_job`, `ai.reclaim_stale`) sono interfaccia pubblica: cambiarne la firma è una decisione, non un refactor.
+- Le funzioni del contratto worker (`ai.claim_jobs`, `ai.complete_job`, `ai.fail_job`, `ai.reclaim_stale`, `ai.prune`) sono interfaccia pubblica: cambiarne la firma è una decisione, non un refactor.
 - Un file in `sql/` già committato non si modifica: correzione in un file nuovo.
 - Il worker scrive le colonne target solo tramite `ai.complete_job`, che imposta `ai.writer` con `SET LOCAL`: un UPDATE diretto viene letto dal trigger come override umano.
 - Id dei modelli OpenRouter con il punto (`anthropic/claude-haiku-4.5`, `openai/gpt-6-luna`), non con il trattino. Verificare su openrouter.ai/models prima di proporne uno nuovo; per i benchmark lo snapshot pubblico di Artificial Analysis è `github.com/garo-pro/aa-leaderboards`, il confronto sui ticket è `demo/compare_models.py`.

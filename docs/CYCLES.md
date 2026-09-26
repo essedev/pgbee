@@ -49,3 +49,18 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 **Decisioni.** #15 (backfill a chunk con cursore, guidato da `claim_jobs`).
 
 **Prossimo passo.** Invariato: valutare il criterio di uscita in `ANALYSIS.md` e decidere se fare M4 (demo UI).
+
+## Ciclo 4 (26 settembre 2026): caricamenti massivi, privilegi minimi, retention del lineage
+
+**Obiettivo.** Rendere l'estensione installabile in un database vero: misurare i caricamenti massivi, togliere al worker l'accesso alle tabelle utente, fermare la crescita senza limite di `ai.result` e `ai.job`.
+
+**Fatto.**
+
+- Caricamento massivo misurato su 1M righe (solo doc, tradeoff in `ARCHITECTURE.md`): 38 s con una colonna derivata attiva contro 3.7 s senza, trigger per statement misurato a 33 s e scartato; la ricetta è `ai.disable`, caricamento, `ai.enable` (6.7 s più 19 ms). Documentato anche il claim lento (1-3 s) finché l'autovacuum non aggiorna le statistiche di `ai.job`.
+- Ruolo `ai_worker` (`sql/0008`): funzioni del contratto e trigger di accodamento e override diventano `SECURITY DEFINER` con `search_path` fissato, `EXECUTE` sul contratto revocato a `PUBLIC` e concesso al ruolo, `SELECT` sulle viste. Il worker non ha grant sulle tabelle utente; un ruolo applicativo che scrive solo la tabella accoda e registra override. Cast a `vector` qualificato con lo schema. Regola sulle ridefinizioni nella rule SQL.
+- Retention del lineage (`sql/0009`): `lineage_retention_days` nella config (default null, conservare tutto), `ai.prune(limit, jobs_older_than)` cancella a lotti i risultati non correnti scaduti e i job `done` oltre una settimana, mai risultati correnti, job `dead` o `ai.spend`. Entra nel contratto worker; il worker di riferimento la chiama all'avvio e ogni `AICOL_MAINTENANCE_INTERVAL_SECONDS` (default un'ora), un errore di manutenzione non ferma la coda.
+- Test: quattro sui ruoli (`test_roles.py`, ruoli di cluster creati e rimossi dal modulo), cinque sulla retention, due sul demone (manutenzione all'avvio e a intervallo, errore che non ferma la coda).
+
+**Decisioni.** #16 (privilegi minimi con funzioni definer), #17 (retention per colonna eseguita dal worker).
+
+**Prossimo passo.** Invariato: valutare il criterio di uscita in `ANALYSIS.md` e decidere se fare M4 (demo UI).

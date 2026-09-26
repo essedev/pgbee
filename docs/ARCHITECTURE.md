@@ -67,7 +67,7 @@ Le funzioni `ai.claim_jobs`, `ai.complete_job`, `ai.fail_job`, `ai.reclaim_stale
 
 ## Decisioni chiave
 
-Le decisioni con alternativa scartata stanno numerate in `DECISIONS.md`. Le principali: SQL puro invece di estensione compilata (#1), worker esterno invece di chiamate dal DB (#2), Python per il worker di riferimento con Rust rinviato (#3), stale calcolato dalle versioni invece che memorizzato (#4), override pinnato di default (#5), confidenza auto-riportata come euristica dichiarata (#6), psycopg senza ORM nel worker (#7), perimetro a colonne derivate senza job system (#10), embedding uno a uno (#11), backend `decision` separato da `llm` (#12), tetto di spesa applicato al claim (#13), fratelli `decision` nello stesso claim (#14), backfill a chunk guidato dal claim (#15).
+Le decisioni con alternativa scartata stanno numerate in `DECISIONS.md`. Le principali: SQL puro invece di estensione compilata (#1), worker esterno invece di chiamate dal DB (#2), Python per il worker di riferimento con Rust rinviato (#3), stale calcolato dalle versioni invece che memorizzato (#4), override pinnato di default (#5), confidenza auto-riportata come euristica dichiarata (#6), psycopg senza ORM nel worker (#7), perimetro a colonne derivate senza job system (#10), embedding uno a uno (#11), backend `decision` separato da `llm` (#12), tetto di spesa applicato al claim (#13), fratelli `decision` nello stesso claim (#14), backfill a chunk guidato dal claim (#15), worker con privilegi minimi tramite funzioni definer (#16), retention del lineage per colonna eseguita dal worker (#17).
 
 ## Boundary
 

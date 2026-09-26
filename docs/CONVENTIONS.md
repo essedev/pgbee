@@ -29,7 +29,7 @@ Regole specifiche di questo progetto. Gli standard trasversali sono nel CLAUDE.m
 
 - Integration su Postgres vero in Docker (compose del progetto), un run alla volta. Il conftest applica gli script di `sql/` da zero su un database dedicato.
 - I test dell'estensione non usano modelli: chiamano `complete_job` e `fail_job` a mano per simulare il worker.
-- I test del worker usano un provider finto etichettato come tale; il test contro OpenRouter vero porta il marker `llm` ed è escluso dal giro di default.
+- I test del worker usano un provider finto etichettato come tale; i test contro OpenRouter vero portano il marker `llm` e sono esclusi dal giro di default.
 
 ## Pulizia
 
