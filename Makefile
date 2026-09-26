@@ -24,8 +24,8 @@ worker: ## Run the worker loop
 status: ## Show derived columns and queue state
 	cd worker && uv run aicol status
 
-demo: ## Seed the demo, declare derived columns, run the worker
-	cd worker && uv run python ../demo/run.py
+demo: ## Seed the demo, declare derived columns, run the worker (asks before spending)
+	cd worker && uv run python ../demo/run.py --reset
 
 test: ## Run tests (needs db-up)
 	cd worker && uv run pytest
@@ -34,13 +34,13 @@ test-llm: ## Run also the tests that call a real model (costs money)
 	cd worker && uv run pytest -m "llm or not llm"
 
 lint: ## Lint
-	cd worker && uv run ruff check .
+	cd worker && uv run ruff check . ../demo
 
 format: ## Format
-	cd worker && uv run ruff format .
+	cd worker && uv run ruff format . ../demo
 
 typecheck: ## Type check
-	cd worker && uv run mypy src tests
+	cd worker && uv run mypy src tests ../demo
 
 check: ## Full quality pass (format, lint, typecheck, test)
 	$(MAKE) format

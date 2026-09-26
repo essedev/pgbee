@@ -33,4 +33,6 @@ Vedi `docs/CONVENTIONS.md`. Le regole per i file SQL sono in `.claude/rules/sql-
 - Il worker scrive le colonne target solo tramite `ai.complete_job`, che imposta `ai.writer` con `SET LOCAL`: un UPDATE diretto viene letto dal trigger come override umano.
 - Id dei modelli OpenRouter con il punto (`anthropic/claude-haiku-4.5`), non con il trattino. Verificare su openrouter.ai/models prima di proporne uno nuovo.
 - Test che chiamano un modello vero portano il marker `llm`, escluso dal giro di default.
-- Costi: ogni batch verso OpenRouter costa. Prima di lanciare la demo su più di qualche decina di righe, dichiarare la stima.
+- Costi: ogni batch verso OpenRouter costa. `demo/run.py` stampa la stima e chiede conferma; con `--yes` non chiede. Prima di lanciarla su più di qualche decina di righe, dichiarare la stima.
+- L'SDK `openai` 3.x usa il pacchetto `httpx2`, non `httpx`: nei test le eccezioni si costruiscono con `httpx2.Request` e `httpx2.Response`.
+- La demo si lancia dalla cartella `worker` (`make demo`) perché importa il pacchetto `aicol`.
