@@ -133,3 +133,16 @@ async def test_stop_interrupts_the_rate_limit_pause(
     assert time.monotonic() - started < 2
     pending = conn.execute("SELECT count(*) AS n FROM ai.job WHERE status = 'pending'").fetchone()
     assert pending == {"n": 3}, "rate limited jobs go back to the queue with backoff"
+
+
+async def test_daemon_drives_a_chunked_backfill_without_waiting_for_the_poll(
+    database_url: str, conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    conn.execute("INSERT INTO ticket (body) SELECT 'ticket ' || g FROM generate_series(4, 12) g")
+    add_urgency(conn, backfill_chunk=2)
+    worker, contract, task = await start(database_url, FakeProvider(), poll_interval=30)
+    try:
+        took = await wait_until(lambda: all(filled(conn, i) for i in range(1, 13)))
+        assert took < 5, "each chunk wakes the worker for the next one"
+    finally:
+        await shutdown(worker, contract, task)

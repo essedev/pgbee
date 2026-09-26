@@ -10,4 +10,4 @@ Estensione, worker e demo girano end to end contro OpenRouter, con quattro backe
 
 ## Dopo l'esperimento (solo se passa)
 
-Few-shot dagli override umani, chunking con destinazione a tabella (per `DECISIONS.md` #11), backfill a lotti per tabelle grandi, packaging come estensione installabile, worker in Rust (per `DECISIONS.md` #3), estensione SQLite con lo stesso modello concettuale.
+Few-shot dagli override umani, chunking con destinazione a tabella (per `DECISIONS.md` #11), packaging come estensione installabile, worker in Rust (per `DECISIONS.md` #3), estensione SQLite con lo stesso modello concettuale.

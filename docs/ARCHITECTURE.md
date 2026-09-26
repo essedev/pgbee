@@ -18,9 +18,13 @@ Il progetto aggiunge a PostgreSQL le colonne derivate da modello: l'utente dichi
 4. `ai.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms, details)`: verifica che l'hash processato coincida con quello corrente del job (la riga può essere cambiata nel frattempo), valida il valore rispetto al tipo, scrive la colonna target con SQL dinamico dentro un guard (`SET LOCAL ai.writer = 'worker'`) così il trigger di override non lo prende per una correzione umana, inserisce il risultato nel lineage marcandolo corrente, chiude il job. Se l'hash non coincide, il risultato entra nel lineage come non corrente e il job torna `pending`.
 5. In caso di errore il worker chiama `ai.fail_job(job_id, error, retryable)`: se retryable e sotto il massimo tentativi, il job torna `pending` con `next_attempt_at` esponenziale; altrimenti diventa `dead`, visibile in `ai.dead_jobs` e recuperabile con `ai.retry_dead`. Un worker che muore lascia job `claimed`: `ai.reclaim_stale` li rimette in coda dopo il timeout.
 
+## Backfill
+
+`ai.add_column`, `ai.update_column` e `ai.enable` chiamano `ai.backfill`, che non scansiona più la tabella intera: accoda il primo chunk (`backfill_chunk`, default 1000 righe in ordine di chiave primaria), salva un cursore e ritorna. Il resto lo accoda `ai.claim_jobs`: prima e dopo aver preso i job, per ogni colonna con un backfill in corso aggiunge chunk finché in coda ci sono almeno `backfill_chunk` job pending (al massimo dieci chunk per claim), e manda una `NOTIFY` se la scansione non è finita, così il worker riparte senza aspettare il poll. Le righe inserite o modificate durante la scansione le accodano i trigger come sempre. Su 1M righe `add_column` passa da 39 s con la tabella bloccata in scrittura a 0.06 s, e la coda resta intorno a un chunk invece di un milione di job (decisione #15).
+
 ## Cambio di prompt o modello
 
-`ai.update_column(...)` crea una nuova riga in `ai.column_version` e la rende corrente. I risultati esistenti puntano alla versione con cui sono stati calcolati, quindi lo stato "stale" non è una colonna da mantenere: è la differenza tra versione corrente e versione del risultato. La funzione accoda un job per ogni riga con risultato non corrente o assente, saltando le righe con valore umano. Il ricalcolo è incrementale per costruzione.
+`ai.update_column(...)` crea una nuova riga in `ai.column_version` e la rende corrente. I risultati esistenti puntano alla versione con cui sono stati calcolati, quindi lo stato "stale" non è una colonna da mantenere: è la differenza tra versione corrente e versione del risultato. La funzione avvia un backfill che accoda, chunk dopo chunk, ogni riga con risultato non corrente o assente, saltando le righe con valore umano. Il ricalcolo è incrementale per costruzione.
 
 ## Tetto di spesa
 
@@ -59,7 +63,7 @@ Le funzioni `ai.claim_jobs`, `ai.complete_job`, `ai.fail_job`, `ai.reclaim_stale
 
 ## Decisioni chiave
 
-Le decisioni con alternativa scartata stanno numerate in `DECISIONS.md`. Le principali: SQL puro invece di estensione compilata (#1), worker esterno invece di chiamate dal DB (#2), Python per il worker di riferimento con Rust rinviato (#3), stale calcolato dalle versioni invece che memorizzato (#4), override pinnato di default (#5), confidenza auto-riportata come euristica dichiarata (#6), psycopg senza ORM nel worker (#7), perimetro a colonne derivate senza job system (#10), embedding uno a uno (#11), backend `decision` separato da `llm` (#12), tetto di spesa applicato al claim (#13), fratelli `decision` nello stesso claim (#14).
+Le decisioni con alternativa scartata stanno numerate in `DECISIONS.md`. Le principali: SQL puro invece di estensione compilata (#1), worker esterno invece di chiamate dal DB (#2), Python per il worker di riferimento con Rust rinviato (#3), stale calcolato dalle versioni invece che memorizzato (#4), override pinnato di default (#5), confidenza auto-riportata come euristica dichiarata (#6), psycopg senza ORM nel worker (#7), perimetro a colonne derivate senza job system (#10), embedding uno a uno (#11), backend `decision` separato da `llm` (#12), tetto di spesa applicato al claim (#13), fratelli `decision` nello stesso claim (#14), backfill a chunk guidato dal claim (#15).
 
 ## Boundary
 
@@ -75,5 +79,5 @@ Le funzioni sono `SECURITY INVOKER`: il ruolo del worker deve avere `SELECT` sul
 ## Tradeoff accettati
 
 - Le colonne derivate sono eventualmente consistenti e il modello lo dichiara: fra insert e valore passa il tempo di un batch.
-- Il backfill di una tabella grande accoda tutte le righe in una transazione: bene fino a qualche milione di righe, oltre serve un backfill a lotti (ROADMAP).
+- Il backfill avanza solo mentre un worker fa claim: senza worker la scansione resta ferma al primo chunk, visibile in `ai.columns.backfill_pending`.
 - Il costo per riga dipende dal provider ed è visibile solo a posteriori in `ai.result.usage`: il tetto di spesa (#13) ferma una colonna al claim, non stima in anticipo quanto costerà un backfill.

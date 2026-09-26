@@ -55,6 +55,7 @@ def status_cmd() -> None:
         rows = conn.execute(
             "SELECT c.table_schema, c.table_name, c.column_name, c.version, c.backend, c.model,"
             " c.enabled, c.pending, c.claimed, c.done, c.dead, c.stale, c.human_overrides,"
+            " c.backfill_pending, c.backfill_scanned,"
             " b.budget_usd, b.budget_period, b.spent_usd, b.exhausted"
             " FROM ai.columns c JOIN ai.budgets b ON b.column_def_id = c.id"
             " ORDER BY c.table_schema, c.table_name, c.column_name"
@@ -69,8 +70,14 @@ def status_cmd() -> None:
             f"  v{r['version']} {r['backend']} {r['model']} [{state}]"
             f"  pending={r['pending']} claimed={r['claimed']} done={r['done']} dead={r['dead']}"
             f" stale={r['stale']} human={r['human_overrides']}"
-            f"  {_spend(r)}"
+            f"{_backfill(r)}  {_spend(r)}"
         )
+
+
+def _backfill(r: dict[str, Any]) -> str:
+    if not r["backfill_pending"]:
+        return ""
+    return f" backfilling (scanned {r['backfill_scanned']} rows)"
 
 
 def _spend(r: dict[str, Any]) -> str:
