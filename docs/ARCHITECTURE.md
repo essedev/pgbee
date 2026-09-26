@@ -34,9 +34,19 @@ I modelli non danno confidenza calibrata. La v1 chiede al modello di auto-valuta
 
 L'estensione richiede una chiave primaria sulla tabella target e la legge da `pg_constraint` al momento di `ai.add_column`. La chiave viaggia come `jsonb` (`{"id": 42}`) così bigint, uuid e chiavi composte passano dallo stesso codice. Tutto il SQL dinamico usa `format('%I')` per identificatori e parametri per i valori.
 
+## Backend
+
+Ogni versione di una definizione dichiara un `backend`, cioè chi produce il valore:
+
+- `llm`: un modello di linguaggio con output strutturato. Il worker costruisce il JSON schema dal tipo dichiarato, manda prompt e sorgenti, riceve valore e confidenza. Una riga per chiamata, concorrenza limitata.
+- `embedding`: un modello di embedding. Il worker manda le sorgenti a lotti (centinaia per chiamata) e riceve un vettore per riga, scritto in una colonna `vector` di pgvector con la dimensione dichiarata. Nessuna confidenza.
+- `custom`: il valore lo calcola un worker scritto dall'utente (geocoding, OCR, servizio interno) che consuma i job delle sue definizioni con lo stesso contratto. L'estensione non sa né le importa come.
+
+I tre backend condividono tutto il resto: coda, hash, versioni, ricalcolo selettivo, lineage, override. Cambiare modello di embedding e rifare i vettori è un `update_column` come cambiare un prompt.
+
 ## Tipi di output della v1
 
-`enum` (lista di valori ammessi, colonna `text` validata in `complete_job`), `text`, `boolean`, `integer`, `numeric`, `jsonb` (con JSON schema validato dal worker). L'embedding (`vector`) è un backend futuro sullo stesso catalogo, non un caso speciale.
+`enum` (lista di valori ammessi, colonna `text` validata in `complete_job`), `text`, `boolean`, `integer`, `numeric`, `jsonb` (con JSON schema validato dal worker), `vector` (dimensione dichiarata, richiede pgvector). Il `vector` è uno a uno con la riga: il chunking con più vettori per riga è rinviato (`DECISIONS.md` #11).
 
 ## Contratto worker
 
@@ -44,7 +54,7 @@ Le funzioni `ai.claim_jobs`, `ai.complete_job`, `ai.fail_job`, `ai.reclaim_stale
 
 ## Decisioni chiave
 
-Le decisioni con alternativa scartata stanno numerate in `DECISIONS.md`. Le principali: SQL puro invece di estensione compilata (#1), worker esterno invece di chiamate dal DB (#2), Python per il worker di riferimento con Rust rinviato (#3), stale calcolato dalle versioni invece che memorizzato (#4), override pinnato di default (#5), confidenza auto-riportata come euristica dichiarata (#6), psycopg senza ORM nel worker (#7).
+Le decisioni con alternativa scartata stanno numerate in `DECISIONS.md`. Le principali: SQL puro invece di estensione compilata (#1), worker esterno invece di chiamate dal DB (#2), Python per il worker di riferimento con Rust rinviato (#3), stale calcolato dalle versioni invece che memorizzato (#4), override pinnato di default (#5), confidenza auto-riportata come euristica dichiarata (#6), psycopg senza ORM nel worker (#7), perimetro a tre backend senza job system (#10), embedding uno a uno (#11).
 
 ## Boundary
 

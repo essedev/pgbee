@@ -37,3 +37,11 @@ Status: attiva. Il prompt è l'istruzione; il worker aggiunge le sorgenti in un 
 ## #9 Documentazione interna in italiano, README in inglese
 
 Status: attiva. `docs/` e `CLAUDE.md` in italiano, `README.md`, codice, SQL e commenti in inglese. Alternativa scartata: tutto in inglese da subito. Motivo: oggi l'unico lettore della doc interna è italiano; il README è la faccia pubblica di un tool pensato per essere open source. Si traduce quando il progetto apre.
+
+## #10 Perimetro: colonne derivate con tre backend, mai un job system
+
+Status: attiva. Una definizione dichiara un `backend`: `llm` (output strutturato da un modello di linguaggio), `embedding` (vettore da un modello di embedding), `custom` (il valore lo calcola un worker scritto dall'utente, per geocoding, OCR, servizi interni). Ogni job esiste perché esiste una riga con un valore da mantenere. Alternativa scartata: evolvere la coda in un job system generico su Postgres (job senza riga di destinazione, cron, workflow, dipendenze). Motivo: pgmq, pg-boss, Graphile Worker, River e Oban presidiano quel mercato da anni; il valore di questo progetto è la semantica sopra la coda (stale, lineage, override, dedup per hash, ricalcolo selettivo), che una coda generica non ha. Il backend `custom` costa un campo nel catalogo perché il contratto worker è già indipendente dal backend. Lo schema resta `ai`: il meccanismo è generico, il caso d'uso che vende è quello.
+
+## #11 Embedding uno a uno nella v1, chunking dopo
+
+Status: attiva. Il backend `embedding` produce un vettore per riga in una colonna `vector` (pgvector), con dimensione dichiarata nello schema di output. Alternativa scartata: chunking del testo con N vettori per riga in una tabella collegata, come il vectorizer di pgai. Motivo: il chunking introduce una destinazione a tabella e rompe il modello "una colonna"; per l'esperimento i testi sono corti e il vettore per riga basta. Se l'esperimento passa, la destinazione a tabella entra come campo nuovo della definizione, senza toccare coda e lineage.

@@ -35,6 +35,10 @@ L'uscita di Timescale ammette due letture. La prima: non c'è domanda pagante, c
 
 Nessuno oggi fa colonne derivate generiche con lineage, versioning e override su Postgres.
 
+## Perimetro
+
+Tre backend e basta: `llm` (classificazione, estrazione strutturata, riassunto), `embedding` (vettori per la ricerca semantica) e `custom` (un worker dell'utente calcola il valore). Sono lo stesso meccanismo: un valore derivato da colonne sorgente, prodotto fuori dal database, da tenere aggiornato. Cambiare il modello di embedding e rifare tutti i vettori è la stessa operazione di cambiare un prompt. Fuori perimetro, per scelta (`DECISIONS.md` #10): job senza riga di destinazione, cron, workflow, join semantici, ricerca e RAG (li fanno pgvector e Postgres, noi li alimentiamo), memoria conversazionale, agenti.
+
 ## Perché Postgres e non SQLite (per ora)
 
 Il fossato è asincrono: coda, batch, retry, concorrenza tra worker. SQLite è una libreria senza processo proprio, quindi il lavoro in background lo deve guidare l'app host. Un'estensione SQLite validerebbe il modello dati ma non la parte difficile. SQLite resta un secondo prodotto con lo stesso modello concettuale (app locali, agenti, tool desktop), da affrontare quando il modello è stabile.
@@ -49,7 +53,7 @@ Quindi: l'estensione possiede catalogo, coda, lineage e regole; un worker estern
 
 ## Criterio di uscita
 
-La demo mostra il ciclo completo su dati realistici: inserimento, coda, batch, retry sotto errore, cambio prompt con ricalcolo selettivo, override umano che resta. Se il ciclo regge senza interventi manuali e l'esperienza "aggiungi la colonna e non tocchi più niente" convince, si passa alla fase prodotto (packaging, worker compilato, embedding, SQLite). Altrimenti si chiude e resta il modello concettuale.
+La demo mostra il ciclo completo su dati realistici: inserimento, coda, batch, retry sotto errore, cambio prompt con ricalcolo selettivo, override umano che resta. Se il ciclo regge senza interventi manuali e l'esperienza "aggiungi la colonna e non tocchi più niente" convince, si passa alla fase prodotto (packaging, worker compilato, chunking, SQLite). Altrimenti si chiude e resta il modello concettuale.
 
 ## Fonti
 

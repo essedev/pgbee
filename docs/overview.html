@@ -95,6 +95,7 @@
     <a href="#esempio">Come si usa</a>
     <a href="#perche">Perché ora</a>
     <a href="#concorrenza">Concorrenza</a>
+    <a href="#perimetro">Perimetro</a>
     <div class="group">Progetto</div>
     <a href="#funziona">Come funziona</a>
     <a href="#modello">Modello dati</a>
@@ -162,6 +163,17 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
   <p class="small">Nessuno oggi fa colonne derivate generiche con lineage, versioning e override su Postgres. Fonti in <code>docs/ANALYSIS.md</code>.</p>
 </section>
 
+<section id="perimetro">
+  <h2>Perimetro: tre backend e basta</h2>
+  <p>Una definizione dichiara chi produce il valore. I tre backend condividono coda, hash, versioni, ricalcolo selettivo, lineage e override: cambiare modello di embedding e rifare i vettori è la stessa operazione di cambiare un prompt.</p>
+  <div class="grid">
+    <div class="card"><h4><code>llm</code></h4><p>Classificazione, estrazione strutturata, riassunto. Output JSON validato contro il tipo dichiarato, con confidenza. Una riga per chiamata.</p></div>
+    <div class="card"><h4><code>embedding</code></h4><p>Un vettore per riga in una colonna pgvector, per la ricerca semantica. Sorgenti mandate a lotti di centinaia per chiamata.</p></div>
+    <div class="card"><h4><code>custom</code></h4><p>Il valore lo calcola un worker scritto dall'utente (geocoding, OCR, servizio interno) con lo stesso contratto SQL. Ottiene gratis retry, versioni, lineage, override.</p></div>
+  </div>
+  <div class="callout warn"><b>Fuori perimetro, per scelta.</b> Job senza una riga di destinazione, cron, workflow, dipendenze fra job: quello è un job system, e pgmq, pg-boss, Graphile Worker, River lo fanno da anni. Join semantici, ricerca, RAG: li fanno pgvector e Postgres, noi li alimentiamo. Memoria conversazionale e agenti: roba dell'app. La regola: un job esiste solo perché esiste una riga con un valore da mantenere.</div>
+</section>
+
 <section id="funziona">
   <h2>Come funziona</h2>
   <div class="flow">
@@ -191,7 +203,7 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
     <thead><tr><th>Tabella</th><th>Cosa contiene</th><th>Perché esiste</th></tr></thead>
     <tbody>
       <tr><td><code>ai.column_def</code></td><td>Tabella, colonna target, colonne sorgente, tipo di output, policy operative (batch, tentativi, soglia di confidenza, cosa fare con l'override)</td><td>Identifica la colonna derivata. Non cambia quando cambia il prompt</td></tr>
-      <tr><td><code>ai.column_version</code></td><td>Prompt, modello, schema di output, parametri. Una riga per ogni configurazione mai usata, mai modificata</td><td>Rende il ricalcolo incrementale una query e il lineage gratuito</td></tr>
+      <tr><td><code>ai.column_version</code></td><td>Backend (<code>llm</code>, <code>embedding</code>, <code>custom</code>), prompt, modello, schema di output, parametri. Una riga per ogni configurazione mai usata, mai modificata</td><td>Rende il ricalcolo incrementale una query e il lineage gratuito</td></tr>
       <tr><td><code>ai.job</code></td><td>Riga da processare, hash delle sorgenti, stato, tentativi, prossimo tentativo, chi l'ha preso</td><td>La coda. Al massimo un job vivo per riga e colonna</td></tr>
       <tr><td><code>ai.result</code></td><td>Ogni valore prodotto: da quale versione, su quale hash, con che confidenza, da modello o da umano, quanto è costato</td><td>Il lineage. Uno solo è "corrente" per riga e colonna</td></tr>
     </tbody>
@@ -201,7 +213,7 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
 
 <section id="decisioni">
   <h2>Decisioni: pro e contro</h2>
-  <p class="small">Le stesse nove voci di <code>docs/DECISIONS.md</code>, qui con i due lati espliciti. Tutte revocabili: il punto è sapere cosa si compra e cosa si paga.</p>
+  <p class="small">Le stesse undici voci di <code>docs/DECISIONS.md</code>, qui con i due lati espliciti. Tutte revocabili: il punto è sapere cosa si compra e cosa si paga.</p>
 
   <article class="decision">
     <header><span class="num">#1</span><h3>Estensione in SQL puro, non compilata</h3><span class="tag">attiva</span></header>
@@ -292,6 +304,26 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
     </div>
     <div class="verdict"><b>Perché così:</b> si traduce quando serve, non prima.</div>
   </article>
+
+  <article class="decision">
+    <header><span class="num">#10</span><h3>Perimetro: colonne derivate con tre backend, mai un job system</h3><span class="tag">attiva</span></header>
+    <div class="alt">Alternativa scartata: <b>evolvere la coda in un job system generico su Postgres</b> (job senza riga di destinazione, cron, workflow, dipendenze).</div>
+    <div class="pc">
+      <div class="pro"><strong>Pro</strong><ul><li>La storia resta una: dichiari la colonna, il DB la mantiene. Si capisce in una frase</li><li>Il backend <code>custom</code> dà la generalità utile (qualunque calcolo esterno) al costo di un campo nel catalogo</li><li>Non si compete con pgmq, pg-boss, Graphile Worker, River, Oban su una commodity</li></ul></div>
+      <div class="con"><strong>Contro</strong><ul><li>Chi ha già una coda in casa vorrà usare quella: dovremo integrarci, non sostituirla</li><li>Si rinuncia a un mercato più grande (job in generale) per uno più piccolo ma libero</li><li>Un utente che vuole "mandare una mail quando la riga cambia" deve andare altrove</li></ul></div>
+    </div>
+    <div class="verdict"><b>Perché così:</b> il valore vive nella semantica sopra la coda (stale, lineage, override, dedup per hash), che una coda generica non ha. Lo schema resta <code>ai</code>: il meccanismo è generico, il caso d'uso che vende è quello.</div>
+  </article>
+
+  <article class="decision">
+    <header><span class="num">#11</span><h3>Embedding uno a uno nella v1, chunking dopo</h3><span class="tag">attiva</span></header>
+    <div class="alt">Alternativa scartata: <b>chunking del testo con N vettori per riga</b> in una tabella collegata, come il vectorizer di pgai.</div>
+    <div class="pc">
+      <div class="pro"><strong>Pro</strong><ul><li>Il modello "una colonna" resta intatto: un vettore per riga in una colonna pgvector</li><li>Per l'esperimento basta: i testi della demo sono corti</li><li>Coda e lineage non cambiano quando il chunking arriva</li></ul></div>
+      <div class="con"><strong>Contro</strong><ul><li>Documenti lunghi si embeddano male in un vettore solo: la ricerca perde precisione</li><li>Il chunking è la feature che pgai aveva e noi no, finché non arriva</li><li>La destinazione a tabella sarà un campo nuovo della definizione: una migrazione in più</li></ul></div>
+    </div>
+    <div class="verdict"><b>Perché così:</b> il chunking rompe "una colonna" e va progettato con calma nella fase prodotto, se ci si arriva.</div>
+  </article>
 </section>
 
 <section id="rischi">
@@ -310,12 +342,12 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
 <section id="roadmap">
   <h2>Roadmap e demo</h2>
   <ol class="steps">
-    <li><b>M1 Estensione</b>Schema <code>ai</code>, funzioni di gestione, trigger, contratto worker, viste. Test di integrazione su Postgres in Docker che simulano il worker a mano, senza modelli.</li>
-    <li><b>M2 Worker</b>CLI <code>aicol install | run | status</code>, ciclo con <code>LISTEN</code> più poll, batch, concorrenza limitata, output strutturato via OpenRouter, errori classificati. Provider finto nei test, un test marcato contro il servizio vero.</li>
-    <li><b>M3 Demo</b>Tabella <code>ticket</code> di assistenza in italiano, quattro colonne derivate: urgenza (enum), categoria (enum), riassunto (text), dati estratti (jsonb). Script che mostra il ciclo intero, costo misurato.</li>
+    <li><b>M1 Estensione</b>Schema <code>ai</code>, funzioni di gestione con i tre backend, trigger, contratto worker, viste. Test di integrazione su Postgres in Docker che simulano il worker a mano, senza modelli.</li>
+    <li><b>M2 Worker</b>CLI <code>aicol install | run | status</code>, ciclo con <code>LISTEN</code> più poll, batch, concorrenza limitata, backend <code>llm</code> con output strutturato e <code>embedding</code> a lotti via OpenRouter, errori classificati. Provider finto nei test, un test marcato contro il servizio vero.</li>
+    <li><b>M3 Demo</b>Tabella <code>ticket</code> di assistenza in italiano, quattro colonne LLM (urgenza, categoria, riassunto, dati estratti) più un embedding con ricerca dei ticket simili. Script che mostra il ciclo intero, costo misurato.</li>
     <li><b>M4 Demo UI</b>Una tabella che si riempie in tempo reale, la coda di revisione, il lineage di una cella. Solo se M3 convince.</li>
   </ol>
-  <p><span class="tag open">dopo, solo se passa</span> few-shot dagli override, backend embedding con pgvector, backfill a lotti, budget per colonna, packaging come estensione vera, worker in Rust, versione SQLite con lo stesso modello concettuale.</p>
+  <p><span class="tag open">dopo, solo se passa</span> few-shot dagli override, chunking con destinazione a tabella, backfill a lotti, budget per colonna, packaging come estensione vera, worker in Rust, versione SQLite con lo stesso modello concettuale.</p>
 </section>
 
 <section id="glossario">

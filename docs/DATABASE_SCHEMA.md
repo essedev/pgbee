@@ -24,7 +24,7 @@ Una colonna derivata dichiarata. La configurazione che cambia il risultato (prom
 | column_name | text | colonna target |
 | pk_columns | text[] | letta da `pg_constraint` in `add_column` |
 | source_columns | text[] | colonne che alimentano il modello |
-| output_type | ai.output_type | `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb` |
+| output_type | ai.output_type | `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector` |
 | current_version_id | bigint | FK `column_version`, nullable solo durante la creazione |
 | config | jsonb | `batch_size`, `max_attempts`, `backoff_base_seconds`, `confidence_threshold`, `low_confidence_policy` (`write`/`hold`), `override_policy` (`pin`/`until_source_change`), `concurrency` |
 | enabled | boolean | disabilitata: i trigger restano ma non accodano |
@@ -41,10 +41,11 @@ Ogni configurazione che ha prodotto risultati. Non si modifica mai: un cambiamen
 | id | bigserial | PK |
 | column_def_id | bigint | FK |
 | version | integer | progressivo per definizione |
-| prompt | text | istruzione per il modello, senza template |
-| model | text | id OpenRouter, es. `anthropic/claude-haiku-4.5` |
-| output_schema | jsonb | per `enum` la lista dei valori, per `jsonb` il JSON schema, per gli altri vincoli opzionali (min, max, max_length) |
-| model_params | jsonb | temperature e simili |
+| backend | ai.backend | `llm`, `embedding`, `custom` |
+| prompt | text | istruzione per il modello, senza template; null per `embedding` e `custom` |
+| model | text | id OpenRouter, es. `anthropic/claude-haiku-4.5`; per `custom` un nome libero che identifica il worker |
+| output_schema | jsonb | per `enum` la lista dei valori, per `jsonb` il JSON schema, per `vector` `{"dimensions": 1024}`, per gli altri vincoli opzionali (min, max, max_length) |
+| backend_config | jsonb | parametri del backend: temperature per `llm`, batch size di chiamata per `embedding`, libero per `custom` |
 | created_at | timestamptz | |
 
 Unique su `(column_def_id, version)`.
