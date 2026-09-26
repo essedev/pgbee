@@ -89,7 +89,7 @@ Il lineage: ogni valore mai prodotto per una riga e colonna, da modello o da uma
 | model | text | modello che ha risposto davvero (può differire dal richiesto per fallback del provider) |
 | usage | jsonb | token e costo riportati dal provider |
 | latency_ms | integer | |
-| details | jsonb | extra del backend: per `decision` le probabilità per classe (`probabilities`), la probabilità del vero (`probability_true`), il punteggio grezzo e la legenda |
+| details | jsonb | extra del backend: per `decision` le probabilità per classe (`probabilities`), la probabilità del vero (`probability_true`), il punteggio grezzo e la legenda, `questions_in_call` quando la chiamata era condivisa con altre colonne |
 | created_at | timestamptz | |
 
 Unique parziale su `(column_def_id, row_pk) WHERE is_current`. Indice su `(column_def_id, column_version_id)` per trovare le righe stale.

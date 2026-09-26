@@ -308,7 +308,7 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
   </article>
 
   <article class="decision">
-    <header><span class="num">#10</span><h3>Perimetro: colonne derivate con tre backend, mai un job system</h3><span class="tag">attiva</span></header>
+    <header><span class="num">#10</span><h3>Perimetro: colonne derivate con backend espliciti, mai un job system</h3><span class="tag">attiva</span></header>
     <div class="alt">Alternativa scartata: <b>evolvere la coda in un job system generico su Postgres</b> (job senza riga di destinazione, cron, workflow, dipendenze).</div>
     <div class="pc">
       <div class="pro"><strong>Pro</strong><ul><li>La storia resta una: dichiari la colonna, il DB la mantiene. Si capisce in una frase</li><li>Il backend <code>custom</code> dà la generalità utile (qualunque calcolo esterno) al costo di un campo nel catalogo</li><li>Non si compete con pgmq, pg-boss, Graphile Worker, River, Oban su una commodity</li></ul></div>
@@ -336,6 +336,25 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
     </div>
     <div class="verdict"><b>Perché così:</b> il contratto è diverso (nessuna generazione, criteri, confidenza vera) e nasconderlo dietro <code>llm</code> avrebbe reso ambiguo il significato di confidenza.</div>
   </article>
+  <article class="decision">
+    <header><span class="num">#13</span><h3>Tetto di spesa per colonna, contato nel database, applicato al claim</h3><span class="tag">attiva</span></header>
+    <div class="alt">Alternative scartate: <b>budget nel worker</b>, somma su <code>ai.result</code> a ogni claim, stima preventiva in <code>add_column</code>.</div>
+    <div class="pc">
+      <div class="pro"><strong>Pro</strong><ul><li>Vale per qualunque worker, anche di terzi, senza toccare il contratto</li><li>Più worker vedono la stessa spesa</li><li>Il contatore giornaliero in <code>ai.spend</code> sopravvive alla potatura del lineage</li></ul></div>
+      <div class="con"><strong>Contro</strong><ul><li>Lo sforamento massimo è un batch già in volo per worker</li><li>Le chiamate pagate ma fallite (output fuori schema) non vengono contate</li><li>Default senza tetto: chi non lo imposta non è protetto</li></ul></div>
+    </div>
+    <div class="verdict"><b>Perché così:</b> il database è l'unico punto che vede la spesa di tutti i worker, e il claim è l'unico momento in cui fermarla senza cambiare firme.</div>
+  </article>
+
+  <article class="decision">
+    <header><span class="num">#14</span><h3>I job <code>decision</code> della stessa riga si reclamano insieme</h3><span class="tag">attiva</span></header>
+    <div class="alt">Alternative scartate: <b>ordinare la coda per riga</b>, una funzione di claim separata per i fratelli.</div>
+    <div class="pc">
+      <div class="pro"><strong>Pro</strong><ul><li>Jev fa pagare soprattutto il testo: tre domande in una chiamata costano circa la metà che in tre</li><li>Funziona anche nel backfill, dove i job delle diverse colonne stanno lontani in coda</li><li>Nessuna firma del contratto cambia</li></ul></div>
+      <div class="con"><strong>Contro</strong><ul><li>Un claim può restituire più di <code>batch_size</code> job</li><li>Un worker di terzi deve reggere batch più grandi del richiesto</li></ul></div>
+    </div>
+    <div class="verdict"><b>Perché così:</b> il FIFO fra colonne e tabelle resta intatto e il risparmio arriva senza un secondo giro di claim.</div>
+  </article>
 </section>
 
 <section id="rischi">
@@ -344,7 +363,7 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
   <div class="grid">
     <div class="card"><h4>Distribuzione</h4><p>Supabase o Neon possono farlo con più visibilità se decidono che vale. La difesa è arrivare con una cosa che funziona davvero e un worker non legato a un vendor.</p></div>
     <div class="card"><h4>Eventual consistency</h4><p>Fra insert e valore passa il tempo di un batch. Il modello lo dichiara invece di fingere colonne normali; chi ha bisogno del valore sincrono non è il target.</p></div>
-    <div class="card"><h4>Costo</h4><p>Ogni riga costa una chiamata. Il costo è visibile a posteriori per colonna e versione, ma non c'è ancora un budget preventivo.</p></div>
+    <div class="card"><h4>Costo</h4><p>Ogni riga costa una chiamata. Il costo è visibile per colonna e versione e un tetto di spesa per colonna ferma i claim (#13), ma non c'è una stima preventiva del costo di un backfill.</p></div>
     <div class="card"><h4>Troppo generico</h4><p>Se si vende "AI nel DB" nessuno capisce a cosa serve. Si parte da classificazione ed estrazione strutturata, fatte perfette.</p></div>
   </div>
   <h3>Criterio di uscita</h3>
@@ -354,12 +373,12 @@ SELECT body, urgency FROM ticket;   -- urgency = 'high'</code></pre>
 <section id="roadmap">
   <h2>Roadmap e demo</h2>
   <ol class="steps">
-    <li><b>M1 Estensione</b>Schema <code>ai</code>, funzioni di gestione con i tre backend, trigger, contratto worker, viste. Test di integrazione su Postgres in Docker che simulano il worker a mano, senza modelli.</li>
+    <li><b>M1 Estensione</b>Schema <code>ai</code>, funzioni di gestione con i quattro backend, trigger, contratto worker, viste. Test di integrazione su Postgres in Docker che simulano il worker a mano, senza modelli.</li>
     <li><b>M2 Worker</b>CLI <code>aicol install | run | status</code>, ciclo con <code>LISTEN</code> più poll, batch, concorrenza limitata, backend <code>llm</code> con output strutturato e <code>embedding</code> a lotti via OpenRouter, errori classificati. Provider finto nei test, un test marcato contro il servizio vero.</li>
-    <li><b>M3 Demo</b>Tabella <code>ticket</code> di assistenza in italiano, quattro colonne LLM (urgenza, categoria, riassunto, dati estratti) più un embedding con ricerca dei ticket simili. Script che mostra il ciclo intero, costo misurato.</li>
+    <li><b>M3 Demo</b>Tabella <code>ticket</code> di assistenza in italiano, quattro colonne LLM (urgenza, categoria, riassunto, dati estratti), un flag <code>decision</code> di revisione umana e un embedding con ricerca dei ticket simili. Script che mostra il ciclo intero, costo misurato.</li>
     <li><b>M4 Demo UI</b>Una tabella che si riempie in tempo reale, la coda di revisione, il lineage di una cella. Solo se M3 convince.</li>
   </ol>
-  <p><span class="tag open">dopo, solo se passa</span> few-shot dagli override, chunking con destinazione a tabella, backfill a lotti, budget per colonna, packaging come estensione vera, worker in Rust, versione SQLite con lo stesso modello concettuale.</p>
+  <p><span class="tag open">dopo, solo se passa</span> few-shot dagli override, chunking con destinazione a tabella, backfill a lotti, packaging come estensione vera, worker in Rust, versione SQLite con lo stesso modello concettuale.</p>
 </section>
 
 <section id="glossario">

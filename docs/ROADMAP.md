@@ -2,7 +2,7 @@
 
 ## Stato corrente
 
-Estensione, worker e demo girano end to end contro OpenRouter, con quattro backend (`llm`, `decision`, `embedding`, `custom`) e otto modelli confrontati (ciclo 1 in `CYCLES.md`, risultati in `ANALYSIS.md`). Il criterio di uscita dell'esperimento è in `ANALYSIS.md`: il prossimo passo è valutarlo.
+Estensione, worker e demo girano end to end contro OpenRouter, con quattro backend (`llm`, `decision`, `embedding`, `custom`), tetto di spesa per colonna e otto modelli confrontati (cicli 1-2 in `CYCLES.md`, risultati in `ANALYSIS.md`). Il criterio di uscita dell'esperimento è in `ANALYSIS.md`: il prossimo passo è valutarlo.
 
 ## Milestone aperte
 
