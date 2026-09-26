@@ -66,7 +66,7 @@ Otto modelli: sette LLM scelti incrociando l'indice di intelligenza e il tempo a
 | z-ai/glm-5.3-flash | low | 98% | 0,0016 | 2,1 s |
 | mistralai/ministral-14b-2512 | n/d | 93% | 0,0007 | 0,7 s |
 
-Letture: sul compito "classifica una riga corta" i modelli piccoli del 2026 sono equivalenti a Haiku 4.5 a un decimo del costo; Gemini Flash a effort low produce comunque migliaia di token di reasoning e costa come Haiku; GLM 5.3 Flash non permette di disattivare il reasoning (errore 400, il job finisce `dead`, comportamento corretto); Ministral 14B sbaglia dove serve giudizio (URGENTE scritto dal cliente su una richiesta amministrativa). Il default della demo passa a `openai/gpt-6-luna` con effort low. La confidenza auto-riportata è risultata quasi sempre 0,85 o più, anche sulle risposte sbagliate: conferma la decisione #6 di chiamarla euristica.
+Letture: sul compito "classifica una riga corta" i modelli piccoli del 2026 sono equivalenti a Haiku 4.5 a un decimo del costo; Gemini Flash a effort low produce comunque migliaia di token di reasoning e costa come Haiku; GLM 5.3 Flash non permette di disattivare il reasoning (errore 400, il job finisce `dead`, comportamento corretto); Ministral 14B sbaglia dove serve giudizio (URGENTE scritto dal cliente su una richiesta amministrativa). Il default della demo passa a `openai/gpt-6-luna` con effort low. La confidenza auto-riportata è risultata quasi sempre 0,85 o più, anche sulle risposte sbagliate: conferma la decisione #6 di chiamarla euristica. Su 21 righe era una lettura fragile: sui 3000 reclami della prova sul campo (sotto) la confidenza di gpt-6-luna separa i casi dubbi quasi quanto quella di Jev.
 
 ## Modelli di decisione: TypeSafe Jev
 
@@ -74,7 +74,37 @@ Jev (TypeSafe AI, accesso anticipato dal 15 settembre 2026) non è un LLM: in un
 
 Accesso: le registrazioni dirette su TypeSafe sono sospese dal 22 settembre 2026 per la domanda; OpenRouter lo serve sull'endpoint `POST /api/alpha/decisions` con il modello `typesafe/jev-1.13`, quindi basta la chiave OpenRouter. Attenzione a `typesafe/jev-router` su OpenRouter: è un router generico verso LLM (la prova è finita su gpt-6-luna), non Jev.
 
-Sui 21 ticket: 100 per cento su urgency e category, 0,0008 $ per 42 domande (28 volte meno di Haiku 4.5), 0,4 s a chiamata. La confidenza media è 0,93 e la minima 0,40: le cinque risposte sotto 0,8 sono i ticket 7, 9, 13, 14 e 19, cioè quattro dei cinque casi che anche le etichette di riferimento considerano ambigui. A differenza degli LLM, quando il ticket è ambiguo il numero scende davvero, ed è questo che rende utile la coda di revisione. Limiti dichiarati dal produttore: niente generazione di testo, 255 classi al massimo, inglese come lingua primaria (l'italiano ha funzionato sul campione), aritmetica e date deboli, sensibile a istruzioni iniettate nel testo. Una chiamata può contenere molte domande sullo stesso stato quasi allo stesso costo: più colonne `decision` sulla stessa riga vanno in una chiamata sola (`DECISIONS.md` #14).
+Sui 21 ticket: 100 per cento su urgency e category, 0,0008 $ per 42 domande (28 volte meno di Haiku 4.5), 0,4 s a chiamata. La confidenza media è 0,93 e la minima 0,40: le cinque risposte sotto 0,8 sono i ticket 7, 9, 13, 14 e 19, cioè quattro dei cinque casi che anche le etichette di riferimento considerano ambigui. Quando il ticket è ambiguo il numero scende davvero, ed è questo che rende utile la coda di revisione. Il confronto con gli LLM fatto su questi 21 ticket non ha retto su 3000 righe: vedi la prova sul campo. Limiti dichiarati dal produttore: niente generazione di testo, 255 classi al massimo, inglese come lingua primaria (l'italiano ha funzionato sul campione), aritmetica e date deboli, sensibile a istruzioni iniettate nel testo. Una chiamata può contenere molte domande sullo stesso stato quasi allo stesso costo: più colonne `decision` sulla stessa riga vanno in una chiamata sola (`DECISIONS.md` #14).
+
+## Prova sul campo: 3000 reclami CFPB (26 settembre 2026)
+
+Testi veri: reclami di consumatori al regolatore finanziario statunitense (CFPB Consumer Complaint Database, pubblico dominio, copia Hugging Face `BEE-spoke-data/consumer-finance-complaints`), 2022-2024, in inglese, campione stratificato di 333 reclami per ciascuno di nove prodotti (`demo/cfpb/prepare.py`, `sample.jsonl.gz`). Quattro colonne derivate su una tabella: prodotto con Jev, prodotto con gpt-6-luna, "il consumatore ha perso soldi?" con Jev nella stessa chiamata del prodotto, embedding. Il worker è il processo vero `pgbee run`, batch 50, concorrenza 8 (`demo/cfpb/field_test.py`, risultati in `demo/cfpb/results.json`).
+
+| Colonna | Backend | Costo per 1000 righe | Latenza media | Esito |
+|---|---|---|---|---|
+| product_jev | decision | 0,019 $ | 0,32 s | 3000 done, 0 retry |
+| money_lost | decision (stessa chiamata) | 0,019 $ | 0,32 s | 3000 done, 0 retry |
+| product_llm | llm, effort low | 0,093 $ | 1,81 s | 3000 done, 0 retry |
+| embedding | embedding, lotti da 100 | 0,005 $ | 0,04 s | 3000 done, 0 retry |
+
+Totale 0,41 $ per 12.000 job in 17,5 minuti (11,4 job al secondo, limitati dalla latenza dell'LLM), nessun job `dead`, nessun budget toccato, coda tenuta intorno a un chunk per colonna dal backfill incrementale.
+
+Accordo con il prodotto scelto dal consumatore: 79,2 per cento Jev, 79,7 per cento LLM; i due concordano fra loro sull'88,8 per cento delle righe. L'etichetta è rumorosa: la confusione più frequente (100 casi) è "recupero crediti" letto come "report di credito", e in quattro dei cinque esempi guardati il testo chiede di cancellare voci dal report di credito, quindi la risposta del modello è difendibile. Il 79 per cento è un limite inferiore, non l'accuratezza.
+
+Confidenza contro correttezza:
+
+| Fascia | Jev: righe | Jev: accordo | LLM: righe | LLM: accordo |
+|---|---|---|---|---|
+| sotto 0,5 | 113 | 35 % | 44 | 32 % |
+| 0,5-0,7 | 231 | 44 % | 87 | 43 % |
+| 0,7-0,9 | 316 | 59 % | 422 | 59 % |
+| 0,9 e oltre | 2340 | 88 % | 2447 | 86 % |
+
+Letture:
+- Sulla classificazione Jev vale quanto un LLM piccolo e costa un quinto per domanda, a un sesto della latenza; la seconda domanda sulla stessa riga non aggiunge costo di testo (2 domande per chiamata in media).
+- La confidenza di entrambi separa i casi dubbi. La tesi dei 21 ticket, "l'LLM dice sempre 0,85 o più", non regge su testi veri e più lunghi con gpt-6-luna. Jev resta un po' migliore nel concentrare gli errori sotto soglia: con soglia 0,9 la coda di revisione di Jev prende il 22 per cento delle righe e circa metà dei suoi errori, quella dell'LLM il 18 per cento delle righe e circa il 41 per cento dei suoi errori.
+- Il meccanismo ha retto al volume senza interventi: backfill a chunk, fratelli `decision` nella stessa chiamata, tetti di spesa, embedding a lotti, zero errori da gestire.
+- Da migliorare: la coda serve i job in ordine di arrivo e il backfill aggiunge un chunk alla volta, quindi le colonne avanzano a blocchi e la colonna lenta (LLM) trattiene le altre. Una ripartizione equa fra colonne nel claim è il candidato naturale (ROADMAP).
 
 ## Criterio di uscita
 

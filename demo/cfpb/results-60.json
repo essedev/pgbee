@@ -1,0 +1,191 @@
+{
+  "rows": 60,
+  "elapsed_s": 34.1,
+  "columns": [
+    {
+      "column_name": "product_jev",
+      "backend": "decision",
+      "model": "typesafe/jev-1.13",
+      "done": 60,
+      "dead": 0,
+      "retries": 1,
+      "cost_usd": 0.00119,
+      "cost_per_1000": 0.0199,
+      "avg_latency_ms": 351
+    },
+    {
+      "column_name": "money_lost",
+      "backend": "decision",
+      "model": "typesafe/jev-1.13",
+      "done": 60,
+      "dead": 0,
+      "retries": 1,
+      "cost_usd": 0.00119,
+      "cost_per_1000": 0.0199,
+      "avg_latency_ms": 351
+    },
+    {
+      "column_name": "product_llm",
+      "backend": "llm",
+      "model": "openai/gpt-6-luna",
+      "done": 60,
+      "dead": 0,
+      "retries": 0,
+      "cost_usd": 0.00593,
+      "cost_per_1000": 0.0989,
+      "avg_latency_ms": 2404
+    },
+    {
+      "column_name": "embedding",
+      "backend": "embedding",
+      "model": "openai/text-embedding-3-small",
+      "done": 60,
+      "dead": 0,
+      "retries": 0,
+      "cost_usd": 0.00036,
+      "cost_per_1000": 0.006,
+      "avg_latency_ms": 46
+    }
+  ],
+  "errors": [],
+  "accuracy": {
+    "product_jev": 0.85,
+    "product_llm": 0.85
+  },
+  "agreement": {
+    "agree": 0.8833,
+    "accuracy_when_agree": 0.9057,
+    "disagreements": 7
+  },
+  "calibration": {
+    "product_jev": [
+      {
+        "bucket": "<0.5",
+        "n": 2,
+        "accuracy": 0.0
+      },
+      {
+        "bucket": "0.5-0.7",
+        "n": 3,
+        "accuracy": 0.0
+      },
+      {
+        "bucket": "0.7-0.9",
+        "n": 6,
+        "accuracy": 0.667
+      },
+      {
+        "bucket": ">=0.9",
+        "n": 49,
+        "accuracy": 0.959
+      }
+    ],
+    "product_llm": [
+      {
+        "bucket": "0.7-0.9",
+        "n": 11,
+        "accuracy": 0.455
+      },
+      {
+        "bucket": ">=0.9",
+        "n": 49,
+        "accuracy": 0.939
+      }
+    ]
+  },
+  "per_class_accuracy": [
+    {
+      "product_gold": "bank_account",
+      "n": 5,
+      "jev": 0.6,
+      "llm": 0.4
+    },
+    {
+      "product_gold": "credit_card",
+      "n": 4,
+      "jev": 0.75,
+      "llm": 1.0
+    },
+    {
+      "product_gold": "credit_reporting",
+      "n": 4,
+      "jev": 1.0,
+      "llm": 1.0
+    },
+    {
+      "product_gold": "debt_collection",
+      "n": 8,
+      "jev": 0.75,
+      "llm": 0.875
+    },
+    {
+      "product_gold": "money_transfer",
+      "n": 6,
+      "jev": 0.667,
+      "llm": 0.667
+    },
+    {
+      "product_gold": "mortgage",
+      "n": 14,
+      "jev": 1.0,
+      "llm": 1.0
+    },
+    {
+      "product_gold": "personal_loan",
+      "n": 5,
+      "jev": 0.8,
+      "llm": 0.8
+    },
+    {
+      "product_gold": "student_loan",
+      "n": 6,
+      "jev": 1.0,
+      "llm": 1.0
+    },
+    {
+      "product_gold": "vehicle_loan",
+      "n": 8,
+      "jev": 0.875,
+      "llm": 0.75
+    }
+  ],
+  "top_confusions": [
+    {
+      "gold": "bank_account",
+      "predicted": "money_transfer",
+      "n": 2
+    },
+    {
+      "gold": "vehicle_loan",
+      "predicted": "credit_reporting",
+      "n": 2
+    },
+    {
+      "gold": "money_transfer",
+      "predicted": "credit_card",
+      "n": 1
+    },
+    {
+      "gold": "money_transfer",
+      "predicted": "bank_account",
+      "n": 1
+    },
+    {
+      "gold": "debt_collection",
+      "predicted": "credit_reporting",
+      "n": 1
+    },
+    {
+      "gold": "bank_account",
+      "predicted": "credit_card",
+      "n": 1
+    },
+    {
+      "gold": "personal_loan",
+      "predicted": "bank_account",
+      "n": 1
+    }
+  ],
+  "decision_questions_per_call": 2.0,
+  "money_lost_true_rate": 0.6
+}

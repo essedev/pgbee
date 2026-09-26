@@ -10,4 +10,6 @@ Estensione, worker e demo girano end to end contro OpenRouter, con quattro backe
 
 ## Dopo l'esperimento (solo se passa)
 
+Ripartizione equa fra colonne nel claim: nella prova sul campo (ANALYSIS) le colonne avanzano a blocchi e quella lenta trattiene le altre.
+
 Few-shot dagli override umani, chunking con destinazione a tabella (per `DECISIONS.md` #11), pubblicazione su PGXN o `pg_tle` (per `DECISIONS.md` #18), worker in Rust (per `DECISIONS.md` #3), estensione SQLite con lo stesso modello concettuale.
