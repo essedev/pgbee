@@ -89,7 +89,7 @@ Testi veri: reclami di consumatori al regolatore finanziario statunitense (CFPB 
 
 Totale 0,41 $ per 12.000 job in 17,5 minuti (11,4 job al secondo, limitati dalla latenza dell'LLM), nessun job `dead`, nessun budget toccato, coda tenuta intorno a un chunk per colonna dal backfill incrementale.
 
-Accordo con il prodotto scelto dal consumatore: 79,2 per cento Jev, 79,7 per cento LLM; i due concordano fra loro sull'88,8 per cento delle righe. L'etichetta è rumorosa: la confusione più frequente (100 casi) è "recupero crediti" letto come "report di credito", e in quattro dei cinque esempi guardati il testo chiede di cancellare voci dal report di credito, quindi la risposta del modello è difendibile. Il 79 per cento è un limite inferiore, non l'accuratezza.
+Accordo con il prodotto scelto dal consumatore: 79,2 per cento Jev, 79,7 per cento LLM; i due concordano fra loro sull'88,8 per cento delle righe. L'etichetta è rumorosa: la confusione più frequente (100 casi) è "recupero crediti" letto come "report di credito", e in quattro dei cinque esempi guardati il testo chiede di cancellare voci dal report di credito, quindi la risposta del modello è difendibile. Il 79 per cento è accordo con un'etichetta imprecisa, non l'accuratezza: senza etichette riviste a mano non si può dire di quanto quella vera sia più alta, né dimostrare che lo sia.
 
 Confidenza contro correttezza:
 

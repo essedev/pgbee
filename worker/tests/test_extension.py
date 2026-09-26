@@ -616,3 +616,25 @@ def test_current_version_always_belongs_to_its_column(
         " ON v.id = d.current_version_id AND v.column_def_id = d.id WHERE v.id IS NULL",
     )
     assert orphans == 0
+
+
+def test_result_computed_before_a_new_version_is_not_taken_for_it(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    conn.execute("DELETE FROM bee.job WHERE row_pk <> '{\"id\": 1}'::jsonb")
+    job = claim(conn)[0]  # the worker starts computing with version 1
+    v2 = scalar(conn, "SELECT bee.update_column('ticket', 'urgency', p_prompt => 'v2')")
+    assert complete(conn, job, "low") == "stale_requeued"
+    assert urgency_of(conn, 1) is None, "a value from the old prompt is not written"
+    old = conn.execute(
+        "SELECT r.is_current, v.version FROM bee.result r"
+        " JOIN bee.column_version v ON v.id = r.column_version_id"
+    ).fetchall()
+    assert old == [{"is_current": False, "version": 1}], "lineage keeps its real version"
+
+    again = {j["row_pk"]["id"]: j for j in claim(conn)}  # rows 2 and 3 come back with v2 too
+    assert again[1]["column_version_id"] == v2
+    assert complete(conn, again[1], "high") == "written"
+    assert urgency_of(conn, 1) == "high"
+    assert scalar(conn, "SELECT count(*) FROM bee.stale_rows") == 0

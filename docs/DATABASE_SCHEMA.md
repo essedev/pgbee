@@ -68,6 +68,7 @@ La coda. Al massimo un job vivo per riga e colonna.
 | next_attempt_at | timestamptz | il claim prende solo job con `next_attempt_at <= now()` |
 | claimed_by | text | id del worker |
 | claimed_at | timestamptz | base per `reclaim_stale` |
+| claimed_version_id | bigint | versione corrente al momento del claim: quella con cui il worker calcola. `complete_job` registra il risultato sotto questa versione e, se nel frattempo ne è arrivata una nuova, lo tiene fuori dai correnti e riaccoda la riga (0011) |
 | last_error | text | |
 | created_at, updated_at | timestamptz | |
 
