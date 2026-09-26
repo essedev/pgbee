@@ -9,7 +9,7 @@ import psycopg
 from psycopg.rows import DictRow
 
 from aicol.jobs import Job
-from aicol.providers import EmbeddingResult, LlmResult
+from aicol.providers import EmbeddingResult, LlmResult, ProviderError
 
 URGENCY = json.dumps(["low", "medium", "high"])
 
@@ -21,6 +21,8 @@ class FakeProvider:
         self.calls: list[Job] = []
         self.embed_calls: list[list[str]] = []
         self.fail_with = fail_with
+        self.decide_calls: list[list[Job]] = []
+        self.unanswered_def: int | None = None
 
     async def derive(self, job: Job) -> LlmResult:
         self.calls.append(job)
@@ -36,22 +38,36 @@ class FakeProvider:
             latency_ms=5,
         )
 
-    async def decide(self, job: Job) -> LlmResult:
-        self.calls.append(job)
+    async def decide(self, jobs: list[Job]) -> list[LlmResult | ProviderError]:
+        self.calls.extend(jobs)
+        self.decide_calls.append(jobs)
         if self.fail_with is not None:
             raise self.fail_with
-        text = job.source_text().lower()
-        high = "giù" in text or "urgente" in text
-        return LlmResult(
-            value="high" if high else "low",
-            confidence=0.97 if high else 0.81,
-            model="typesafe/jev-1.13-fake",
-            usage={"prompt_tokens": 40, "completion_tokens": 20, "cost": 0.00000168},
-            latency_ms=90,
-            details={
-                "probabilities": {"high": 0.97 if high else 0.19, "low": 0.03 if high else 0.81}
-            },
-        )
+        results: list[LlmResult | ProviderError] = []
+        for job in jobs:
+            if job.column_def_id == self.unanswered_def:
+                results.append(ProviderError("decision model returned no answer", retryable=True))
+                continue
+            text = job.source_text().lower()
+            high = "giù" in text or "urgente" in text
+            value: Any = high if job.output_type == "boolean" else ("high" if high else "low")
+            results.append(
+                LlmResult(
+                    value=value,
+                    confidence=0.97 if high else 0.81,
+                    model="typesafe/jev-1.13-fake",
+                    usage={"prompt_tokens": 40 / len(jobs), "cost": 0.00000168 / len(jobs)},
+                    latency_ms=90,
+                    details={
+                        "probabilities": {
+                            "high": 0.97 if high else 0.19,
+                            "low": 0.03 if high else 0.81,
+                        },
+                        "questions_in_call": len(jobs),
+                    },
+                )
+            )
+        return results
 
     async def embed(self, model: str, texts: list[str], config: dict[str, Any]) -> EmbeddingResult:
         self.embed_calls.append(texts)

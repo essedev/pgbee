@@ -62,6 +62,20 @@ async def test_every_backend_fills_its_column_through_openrouter(
         " p_prompt => 'Is the customer unable to sell or get paid right now?', p_model => %s)",
         (DECISION_MODEL,),
     )
+    conn.execute(
+        "SELECT ai.add_column('ticket', 'topic', array['body'], 'enum', 'decision',"
+        " p_prompt => 'What is the ticket about?', p_model => %s, p_output_schema => %s::jsonb)",
+        (
+            DECISION_MODEL,
+            json.dumps(
+                {
+                    "technical": "the site, the app or an integration misbehaves",
+                    "billing": "invoices, payments, refunds, billing details",
+                    "other": "anything else",
+                }
+            ),
+        ),
+    )
     conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
     conn.execute(
         "SELECT ai.add_column('ticket', 'embedding', array['body'], 'vector', 'embedding',"
@@ -74,11 +88,12 @@ async def test_every_backend_fills_its_column_through_openrouter(
     jobs = conn.execute(
         "SELECT status, count(*) AS n, max(last_error) AS error FROM ai.job GROUP BY status"
     ).fetchall()
-    assert jobs == [{"status": "done", "n": 9, "error": None}]
+    assert jobs == [{"status": "done", "n": 12, "error": None}]
 
     rows = conn.execute(
-        "SELECT id, urgency, blocking, embedding FROM ticket ORDER BY id"
+        "SELECT id, urgency, blocking, topic, embedding FROM ticket ORDER BY id"
     ).fetchall()
+    assert [r["topic"] for r in rows[:2]] == ["technical", "billing"]
     assert rows[0]["urgency"] == "high" and rows[0]["blocking"] is True
     assert all(r["urgency"] in ("low", "medium", "high") for r in rows)
     assert rows[1]["blocking"] is False and rows[2]["blocking"] is False
@@ -91,9 +106,10 @@ async def test_every_backend_fills_its_column_through_openrouter(
     assert decision is not None
     assert 0.5 <= decision["confidence"] <= 1
     assert 0.5 <= decision["details"]["probability_true"] <= 1
+    assert decision["details"]["questions_in_call"] == 2, "blocking and topic share the call"
 
     costs = conn.execute("SELECT column_name, cost FROM ai.cost_by_column").fetchall()
-    assert {c["column_name"] for c in costs} == {"urgency", "blocking", "embedding"}
+    assert {c["column_name"] for c in costs} == {"urgency", "blocking", "topic", "embedding"}
     assert all(c["cost"] is not None and c["cost"] > 0 for c in costs)
 
 

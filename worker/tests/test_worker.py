@@ -272,3 +272,78 @@ def test_decision_question_and_answer_mapping() -> None:
     )
     with pytest.raises(ProviderError):
         decision_answer(job("enum", {"a": "A"}), {"choice": "zzz", "confidence": 1})
+
+
+def add_decision(conn: psycopg.Connection[DictRow], column: str, output_type: str) -> int:
+    schema = '{"low": "routine", "high": "shop cannot sell"}' if output_type == "enum" else "{}"
+    row = conn.execute(
+        f"SELECT ai.add_column('ticket', '{column}', array['body'], '{output_type}',"
+        " p_backend => 'decision', p_prompt => 'Question', p_model => 'typesafe/jev-1.13',"
+        " p_output_schema => %s::jsonb) AS id",
+        (schema,),
+    ).fetchone()
+    assert row is not None
+    return int(row["id"])
+
+
+async def test_decision_columns_of_the_same_row_share_one_call(
+    conn: psycopg.Connection[DictRow], ticket: str, database_url: str
+) -> None:
+    add_decision(conn, "urgency", "enum")
+    add_decision(conn, "blocking", "boolean")
+    provider = FakeProvider()
+    stats = await run_once(database_url, provider)
+    assert stats.outcomes == {"written": 6}
+    assert sorted(len(call) for call in provider.decide_calls) == [2, 2, 2]
+    assert all(len({j.row_pk["id"] for j in call}) == 1 for call in provider.decide_calls)
+    row = conn.execute("SELECT urgency, blocking FROM ticket WHERE id = 1").fetchone()
+    assert row == {"urgency": "high", "blocking": True}
+    shared = conn.execute(
+        "SELECT DISTINCT (details ->> 'questions_in_call')::int AS n FROM ai.result"
+    ).fetchall()
+    assert shared == [{"n": 2}]
+
+
+async def test_a_missing_answer_fails_only_its_own_job(
+    conn: psycopg.Connection[DictRow], ticket: str, database_url: str
+) -> None:
+    add_decision(conn, "urgency", "enum")
+    blocking = add_decision(conn, "blocking", "boolean")
+    provider = FakeProvider()
+    provider.unanswered_def = blocking
+    stats = await run_once(database_url, provider)
+    assert stats.outcomes == {"written": 3} and stats.failed == 3
+    states = conn.execute(
+        "SELECT column_def_id, status, last_error FROM ai.job ORDER BY column_def_id, id"
+    ).fetchall()
+    assert {(s["column_def_id"] == blocking, s["status"]) for s in states} == {
+        (False, "done"),
+        (True, "pending"),
+    }
+
+
+def test_fan_out_groups_by_row_and_model_and_caps_the_questions() -> None:
+    from aicol.worker import MAX_QUESTIONS_PER_CALL, fan_out
+
+    def job(job_id: int, row: int, model: str = "typesafe/jev-1.13", body: str = "x") -> Job:
+        return Job(
+            job_id=job_id,
+            column_def_id=job_id,
+            column_version_id=job_id,
+            backend="decision",
+            model=model,
+            prompt="q",
+            output_type="boolean",
+            output_schema={},
+            backend_config={},
+            config={},
+            row_pk={"id": row},
+            source_hash=b"h",
+            source={"body": body},
+            attempts=1,
+        )
+
+    calls = fan_out([job(1, 1), job(2, 1), job(3, 2), job(4, 1, model="other/model")])
+    assert sorted(sorted(j.job_id for j in c) for c in calls) == [[1, 2], [3], [4]]
+    many = fan_out([job(i, 1) for i in range(MAX_QUESTIONS_PER_CALL + 1)])
+    assert [len(c) for c in many] == [MAX_QUESTIONS_PER_CALL, 1]

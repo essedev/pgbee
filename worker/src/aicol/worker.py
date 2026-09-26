@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -11,7 +12,7 @@ import structlog
 
 from aicol.db import Contract
 from aicol.jobs import Job
-from aicol.providers import Provider, ProviderError, classify
+from aicol.providers import LlmResult, Provider, ProviderError, classify
 
 log = structlog.get_logger("aicol.worker")
 
@@ -87,9 +88,12 @@ class Worker:
             return stats
         groups: dict[tuple[int, str], list[Job]] = defaultdict(list)
         for job in jobs:
-            groups[(job.column_def_id, job.backend)].append(job)
+            if job.backend != "decision":
+                groups[(job.column_def_id, job.backend)].append(job)
+        decisions = [job for job in jobs if job.backend == "decision"]
         await asyncio.gather(
-            *(self._run_group(backend, group, stats) for (_, backend), group in groups.items())
+            *(self._run_group(backend, group, stats) for (_, backend), group in groups.items()),
+            self._run_decisions(decisions, stats),
         )
         log.info(
             "batch.done",
@@ -100,13 +104,13 @@ class Worker:
         return stats
 
     async def _run_group(self, backend: str, jobs: list[Job], stats: BatchStats) -> None:
-        if backend in ("llm", "decision"):
+        if backend == "llm":
             concurrency = int(jobs[0].config.get("concurrency", 4))
             semaphore = asyncio.Semaphore(max(1, concurrency))
 
             async def one(job: Job) -> None:
                 async with semaphore:
-                    await self._run_single(job, stats)
+                    await self._run_llm(job, stats)
 
             await asyncio.gather(*(one(job) for job in jobs))
         elif backend == "embedding":
@@ -121,16 +125,49 @@ class Worker:
                     stats,
                 )
 
-    async def _run_single(self, job: Job, stats: BatchStats) -> None:
-        """One row, one call: llm (structured generation) or decision (typed question)."""
+    async def _run_llm(self, job: Job, stats: BatchStats) -> None:
+        """One row, one call: structured generation."""
         try:
-            if job.backend == "decision":
-                result = await self._provider.decide(job)
-            else:
-                result = await self._provider.derive(job)
+            result = await self._provider.derive(job)
         except Exception as exc:
             await self._fail(job, classify(exc), stats)
             return
+        await self._complete(job, result, stats)
+
+    async def _run_decisions(self, jobs: list[Job], stats: BatchStats) -> None:
+        """Decision jobs on the same row and model, from any column, share one call."""
+        if not jobs:
+            return
+        calls = fan_out(jobs)
+        concurrency = int(jobs[0].config.get("concurrency", 4))
+        semaphore = asyncio.Semaphore(max(1, concurrency))
+
+        async def one(call: list[Job]) -> None:
+            async with semaphore:
+                await self._run_decision_call(call, stats)
+
+        await asyncio.gather(*(one(call) for call in calls))
+
+    async def _run_decision_call(self, jobs: list[Job], stats: BatchStats) -> None:
+        try:
+            results = await self._provider.decide(jobs)
+            if len(results) != len(jobs):
+                raise ProviderError(
+                    f"decision count mismatch: {len(results)} for {len(jobs)} questions",
+                    retryable=True,
+                )
+        except Exception as exc:
+            error = classify(exc)
+            for job in jobs:
+                await self._fail(job, error, stats)
+            return
+        for job, result in zip(jobs, results, strict=True):
+            if isinstance(result, ProviderError):
+                await self._fail(job, result, stats)
+            else:
+                await self._complete(job, result, stats)
+
+    async def _complete(self, job: Job, result: LlmResult, stats: BatchStats) -> None:
         outcome = await self._db.complete(
             job,
             result.value,
@@ -195,6 +232,26 @@ class Worker:
             status=status,
             error=str(error),
         )
+
+
+MAX_QUESTIONS_PER_CALL = 16
+
+
+def fan_out(jobs: list[Job]) -> list[list[Job]]:
+    """Group decision jobs by (model, row, source) and cap the questions per call."""
+    groups: dict[tuple[str, str, str], list[Job]] = defaultdict(list)
+    for job in jobs:
+        key = (
+            job.model,
+            json.dumps(job.row_pk, sort_keys=True),
+            json.dumps(job.source, sort_keys=True, default=str),
+        )
+        groups[key].append(job)
+    return [
+        group[i : i + MAX_QUESTIONS_PER_CALL]
+        for group in groups.values()
+        for i in range(0, len(group), MAX_QUESTIONS_PER_CALL)
+    ]
 
 
 def _split_usage(usage: dict[str, object], n: int) -> dict[str, object]:

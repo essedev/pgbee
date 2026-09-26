@@ -42,7 +42,12 @@ class EmbeddingResult:
 class Provider(Protocol):
     async def derive(self, job: Job) -> LlmResult: ...
 
-    async def decide(self, job: Job) -> LlmResult: ...
+    async def decide(self, jobs: list[Job]) -> list[LlmResult | ProviderError]:
+        """One call for decision jobs that share model and source: one question per job.
+
+        Raises when the whole call fails; a ProviderError in the list fails only that job.
+        """
+        ...
 
     async def embed(
         self, model: str, texts: list[str], config: dict[str, Any]
@@ -208,37 +213,61 @@ class OpenRouterProvider:
             latency_ms=latency_ms,
         )
 
-    async def decide(self, job: Job) -> LlmResult:
-        """One typed question to a decision model (TypeSafe Jev) via OpenRouter's decisions API."""
-        question = decision_question(job)
-        state: Any = job.source_text() if len(job.source) == 1 else job.source
+    async def decide(self, jobs: list[Job]) -> list[LlmResult | ProviderError]:
+        """Typed questions to a decision model (TypeSafe Jev) via OpenRouter's decisions API.
+
+        All jobs share model and source, so they become questions on one state: the state is
+        paid once, which is most of the cost.
+        """
+        first = jobs[0]
+        questions = {_question_key(job): decision_question(job) for job in jobs}
+        state: Any = first.source_text() if len(first.source) == 1 else first.source
         started = time.monotonic()
         response = await self._http.post(
             self._decisions_url,
-            json={"model": job.model, "state": state, "questions": {"value": question}},
+            json={"model": first.model, "state": state, "questions": questions},
         )
         response.raise_for_status()
         latency_ms = int((time.monotonic() - started) * 1000)
         body = response.json()
-        answer = body["answers"]["value"]
-        value, confidence, details = decision_answer(job, answer)
-        usage = body.get("usage") or {}
-        return LlmResult(
-            value=value,
-            confidence=confidence,
-            model=str(body.get("model") or job.model),
-            usage={
-                k: v
-                for k, v in {
-                    "prompt_tokens": usage.get("input_tokens"),
-                    "completion_tokens": usage.get("output_tokens"),
-                    "cost": usage.get("cost"),
-                }.items()
-                if v is not None
-            },
-            latency_ms=latency_ms,
-            details=details,
-        )
+        answers = body.get("answers") or {}
+        reported = body.get("usage") or {}
+        n = len(jobs)
+        usage = {
+            k: v / n
+            for k, v in {
+                "prompt_tokens": reported.get("input_tokens"),
+                "completion_tokens": reported.get("output_tokens"),
+                "cost": reported.get("cost"),
+            }.items()
+            if isinstance(v, int | float)
+        }
+        model = str(body.get("model") or first.model)
+        results: list[LlmResult | ProviderError] = []
+        for job in jobs:
+            answer = answers.get(_question_key(job))
+            if not isinstance(answer, dict):
+                results.append(ProviderError("decision model returned no answer", retryable=True))
+                continue
+            try:
+                value, confidence, details = decision_answer(job, answer)
+            except ProviderError as exc:
+                results.append(exc)
+                continue
+            except (KeyError, TypeError, ValueError) as exc:
+                results.append(ProviderError(f"malformed decision answer: {exc!r}", retryable=True))
+                continue
+            results.append(
+                LlmResult(
+                    value=value,
+                    confidence=confidence,
+                    model=model,
+                    usage=usage,
+                    latency_ms=latency_ms,
+                    details={**details, "questions_in_call": n},
+                )
+            )
+        return results
 
     async def embed(self, model: str, texts: list[str], config: dict[str, Any]) -> EmbeddingResult:
         started = time.monotonic()
@@ -256,6 +285,10 @@ class OpenRouterProvider:
             usage=_usage_dict(response.usage),
             latency_ms=latency_ms,
         )
+
+
+def _question_key(job: Job) -> str:
+    return f"job_{job.job_id}"
 
 
 def parse_json_object(text: str) -> Any:
