@@ -30,6 +30,10 @@ Il progetto aggiunge a PostgreSQL le colonne derivate da modello: l'utente dichi
 
 `budget_usd` nella config di una definizione (con `budget_period` `day`, `month` o `total`) limita quanto quella colonna può spendere. Un trigger su `ai.result` somma `usage.cost` in `ai.spend` per giorno UTC; `ai.claim_jobs` valuta il budget una volta per definizione e salta quelle esaurite, i cui job restano `pending` finché il periodo non si rinnova o `ai.configure` alza il tetto (e sveglia i worker con una `NOTIFY`). Il controllo avviene al claim, quindi lo sforamento massimo è un batch già in volo per worker. Default: nessun tetto (decisione #13). `aicol status` e la vista `ai.budgets` mostrano speso e residuo.
 
+## Retention
+
+`ai.result` tiene ogni valore mai prodotto e `ai.job` ogni job completato: senza pulizia crescono per sempre. `ai.prune` cancella a lotti i risultati non correnti più vecchi del `lineage_retention_days` della loro colonna (default: conservare tutto) e i job `done` più vecchi di una settimana. Non tocca i risultati correnti, cioè il valore dietro ogni cella, da modello o umano, né i job `dead` né `ai.spend`, quindi i budget restano esatti; `ai.cost_by_column` invece conta solo i risultati rimasti. Il worker di riferimento la chiama all'avvio e poi ogni `AICOL_MAINTENANCE_INTERVAL_SECONDS` (default un'ora), a lotti da 10.000 finché c'è da cancellare; un errore di manutenzione finisce nel log e non ferma la coda (decisione #17).
+
 ## Override umano
 
 Un `UPDATE ticket SET urgency = 'low'` fuori dal guard del worker scatta il trigger di override: inserisce un risultato con `source = 'human'`, lo marca corrente, cancella i job vivi per quella riga. Da lì la riga è pinnata: né il cambio prompt né il cambio delle sorgenti la ricalcolano, salvo policy `until_source_change` sulla definizione. `ai.unpin(table, column, pk)` toglie il pin e riaccoda; lo stesso effetto si ottiene con un `UPDATE` che mette la colonna a NULL, il gesto naturale per dire "ricalcola". L'insieme degli override umani è anche la base dei few-shot futuri (vedi ROADMAP).
@@ -59,7 +63,7 @@ I quattro backend condividono tutto il resto: coda, hash, versioni, ricalcolo se
 
 ## Contratto worker
 
-Le funzioni `ai.claim_jobs`, `ai.complete_job`, `ai.fail_job`, `ai.reclaim_stale` e il canale `ai_jobs` sono l'interfaccia pubblica. Un worker in qualunque linguaggio che rispetta questo contratto è un worker valido: chi deve passare da un gateway interno scrive il suo. Il worker Python è l'implementazione di riferimento, non l'unica.
+Le funzioni `ai.claim_jobs`, `ai.complete_job`, `ai.fail_job`, `ai.reclaim_stale`, `ai.prune` (manutenzione) e il canale `ai_jobs` sono l'interfaccia pubblica. Un worker in qualunque linguaggio che rispetta questo contratto è un worker valido: chi deve passare da un gateway interno scrive il suo. Il worker Python è l'implementazione di riferimento, non l'unica.
 
 ## Decisioni chiave
 
@@ -74,7 +78,7 @@ Le decisioni con alternativa scartata stanno numerate in `DECISIONS.md`. Le prin
 
 ## Sicurezza e permessi
 
-L'install crea il ruolo `ai_worker` (serve `CREATEROLE`, altrimenti lo crea una volta un superuser). Un worker si collega con un login membro di quel ruolo (`CREATE ROLE aicol LOGIN PASSWORD '...' IN ROLE ai_worker`) e ha solo `USAGE` sullo schema `ai`, `EXECUTE` sulle quattro funzioni del contratto e `SELECT` sulle viste: nessun accesso alle tabelle dell'utente né alle tabelle di `ai`. Le funzioni del contratto e i trigger di accodamento e override sono `SECURITY DEFINER` con `search_path = pg_catalog, pg_temp`, quindi girano come il proprietario dell'estensione; per lo stesso motivo un ruolo applicativo che ha solo `INSERT` e `UPDATE` sulla tabella accoda e registra override senza grant sullo schema `ai`. `EXECUTE` sul contratto è revocato a `PUBLIC`: una funzione definer aperta a tutti permetterebbe a chiunque di leggere le sorgenti con `claim_jobs` o di scrivere le colonne target con `complete_job`. Le funzioni di gestione (`add_column` e le altre) restano `SECURITY INVOKER` e richiedono il proprietario della tabella. Il prompt è dato, non codice: viaggia nel catalogo, non viene mai interpolato in SQL (decisione #16).
+L'install crea il ruolo `ai_worker` (serve `CREATEROLE`, altrimenti lo crea una volta un superuser). Un worker si collega con un login membro di quel ruolo (`CREATE ROLE aicol LOGIN PASSWORD '...' IN ROLE ai_worker`) e ha solo `USAGE` sullo schema `ai`, `EXECUTE` sulle funzioni del contratto e `SELECT` sulle viste: nessun accesso alle tabelle dell'utente né alle tabelle di `ai`. Le funzioni del contratto e i trigger di accodamento e override sono `SECURITY DEFINER` con `search_path = pg_catalog, pg_temp`, quindi girano come il proprietario dell'estensione; per lo stesso motivo un ruolo applicativo che ha solo `INSERT` e `UPDATE` sulla tabella accoda e registra override senza grant sullo schema `ai`. `EXECUTE` sul contratto è revocato a `PUBLIC`: una funzione definer aperta a tutti permetterebbe a chiunque di leggere le sorgenti con `claim_jobs` o di scrivere le colonne target con `complete_job`. Le funzioni di gestione (`add_column` e le altre) restano `SECURITY INVOKER` e richiedono il proprietario della tabella. Il prompt è dato, non codice: viaggia nel catalogo, non viene mai interpolato in SQL (decisione #16).
 
 ## Tradeoff accettati
 

@@ -80,6 +80,13 @@ class Contract:
         assert row is not None
         return int(row["n"])
 
+    async def prune(self, limit: int) -> tuple[int, int]:
+        """One maintenance batch: (results, jobs) deleted, each at most `limit`."""
+        cur = await self._conn.execute("SELECT results, jobs FROM ai.prune(%s)", (limit,))
+        row = await cur.fetchone()
+        assert row is not None
+        return int(row["results"]), int(row["jobs"])
+
     async def listen(self) -> None:
         await self._conn.execute("LISTEN ai_jobs")
 

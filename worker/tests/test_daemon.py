@@ -146,3 +146,37 @@ async def test_daemon_drives_a_chunked_backfill_without_waiting_for_the_poll(
         assert took < 5, "each chunk wakes the worker for the next one"
     finally:
         await shutdown(worker, contract, task)
+
+
+async def test_daemon_prunes_on_start_and_every_interval(
+    database_url: str, conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn, lineage_retention_days=1)
+    worker, contract, task = await start(
+        database_url, FakeProvider(), poll_interval=0.1, maintenance_interval=0.2
+    )
+    try:
+        await wait_until(lambda: filled(conn, 3))
+        conn.execute("UPDATE ai.job SET updated_at = now() - interval '8 days'")
+        await wait_until(
+            lambda: conn.execute("SELECT count(*) AS n FROM ai.job").fetchone() == {"n": 0}
+        )
+    finally:
+        await shutdown(worker, contract, task)
+
+
+async def test_failed_maintenance_does_not_stop_the_queue(
+    database_url: str, conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    worker, contract, task = await start(database_url, FakeProvider(), poll_interval=30)
+
+    async def broken(limit: int) -> tuple[int, int]:
+        raise psycopg.errors.UndefinedFunction("function ai.prune(integer) does not exist")
+
+    contract.prune = broken  # type: ignore[method-assign]
+    try:
+        await wait_until(lambda: filled(conn, 3))
+        assert not task.done()
+    finally:
+        await shutdown(worker, contract, task)

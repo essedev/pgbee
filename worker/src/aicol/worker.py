@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+import psycopg
 import structlog
 
 from aicol.db import Contract
@@ -36,6 +38,7 @@ class Worker:
         poll_interval: float = 5.0,
         claim_timeout_seconds: int = 300,
         rate_limit_pause: float = 10.0,
+        maintenance_interval: float = 3600.0,
     ) -> None:
         self._db = contract
         self._provider = provider
@@ -44,6 +47,8 @@ class Worker:
         self._poll_interval = poll_interval
         self._claim_timeout = claim_timeout_seconds
         self._rate_limit_pause = rate_limit_pause
+        self._maintenance_interval = maintenance_interval
+        self._next_maintenance = 0.0
         self._stop = asyncio.Event()
 
     def stop(self) -> None:
@@ -53,6 +58,9 @@ class Worker:
         await self._db.listen()
         log.info("worker.start", worker_id=self._worker_id, batch_size=self._batch_size)
         while not self._stop.is_set():
+            if time.monotonic() >= self._next_maintenance:
+                await self._maintain()
+                self._next_maintenance = time.monotonic() + self._maintenance_interval
             reclaimed = await self._db.reclaim_stale(self._claim_timeout)
             if reclaimed:
                 log.warning("jobs.reclaimed", count=reclaimed)
@@ -64,6 +72,23 @@ class Worker:
                 continue
             await self._idle()
         log.info("worker.stop", worker_id=self._worker_id)
+
+    async def _maintain(self) -> None:
+        """Prune old lineage and done jobs in bounded batches. A failure is logged and retried
+        at the next interval: maintenance must not stop the queue."""
+        results = jobs = 0
+        try:
+            for _ in range(MAX_PRUNE_BATCHES):
+                r, j = await self._db.prune(PRUNE_BATCH)
+                results += r
+                jobs += j
+                if (r < PRUNE_BATCH and j < PRUNE_BATCH) or self._stop.is_set():
+                    break
+        except psycopg.Error as exc:
+            log.error("maintenance.failed", error=str(exc))
+            return
+        if results or jobs:
+            log.info("maintenance.pruned", results=results, jobs=jobs)
 
     async def _pause(self, seconds: float) -> None:
         """Sleep, but return as soon as stop() is called."""
@@ -235,6 +260,8 @@ class Worker:
 
 
 MAX_QUESTIONS_PER_CALL = 16
+PRUNE_BATCH = 10_000
+MAX_PRUNE_BATCHES = 100
 
 
 def fan_out(jobs: list[Job]) -> list[list[Job]]:

@@ -112,6 +112,7 @@ async def _run(settings: Settings, *, once: bool, batch_size: int) -> None:
         batch_size=batch_size,
         poll_interval=settings.poll_interval_seconds,
         claim_timeout_seconds=settings.claim_timeout_seconds,
+        maintenance_interval=settings.maintenance_interval_seconds,
     )
     try:
         if once:

@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     worker_id: str = Field(default_factory=lambda: socket.gethostname(), alias="AICOL_WORKER_ID")
     poll_interval_seconds: float = Field(default=5.0, alias="AICOL_POLL_INTERVAL_SECONDS")
     claim_timeout_seconds: int = Field(default=300, alias="AICOL_CLAIM_TIMEOUT_SECONDS")
+    maintenance_interval_seconds: float = Field(
+        default=3600.0, gt=0, alias="AICOL_MAINTENANCE_INTERVAL_SECONDS"
+    )
     log_level: str = Field(default="info", alias="AICOL_LOG_LEVEL")
 
 

@@ -26,7 +26,7 @@ Una colonna derivata dichiarata. La configurazione che cambia il risultato (prom
 | source_columns | text[] | colonne che alimentano il modello |
 | output_type | ai.output_type | `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector` |
 | current_version_id | bigint | FK `column_version`, nullable solo durante la creazione |
-| config | jsonb | `batch_size`, `max_attempts`, `backoff_base_seconds`, `confidence_threshold`, `low_confidence_policy` (`write`/`hold`), `override_policy` (`pin`/`until_source_change`), `concurrency`, `budget_usd` (numero in USD, null senza tetto), `budget_period` (`day`/`month`/`total`, default `month`), `backfill_chunk` (righe per chunk di backfill, 1-100000, default 1000). Validato da un trigger su insert e update |
+| config | jsonb | `batch_size`, `max_attempts`, `backoff_base_seconds`, `confidence_threshold`, `low_confidence_policy` (`write`/`hold`), `override_policy` (`pin`/`until_source_change`), `concurrency`, `budget_usd` (numero in USD, null senza tetto), `budget_period` (`day`/`month`/`total`, default `month`), `backfill_chunk` (righe per chunk di backfill, 1-100000, default 1000), `lineage_retention_days` (intero >= 1, null per conservare tutto, default null). Validato da un trigger su insert e update |
 | enabled | boolean | disabilitata: i trigger restano ma non accodano |
 | backfill_pending | boolean | una scansione della tabella è in corso |
 | backfill_cursor | jsonb | chiave primaria dell'ultima riga scansionata, NULL prima del primo chunk |
@@ -95,7 +95,7 @@ Il lineage: ogni valore mai prodotto per una riga e colonna, da modello o da uma
 | details | jsonb | extra del backend: per `decision` le probabilità per classe (`probabilities`), la probabilità del vero (`probability_true`), il punteggio grezzo e la legenda, `questions_in_call` quando la chiamata era condivisa con altre colonne |
 | created_at | timestamptz | |
 
-Unique parziale su `(column_def_id, row_pk) WHERE is_current`. Indice su `(column_def_id, column_version_id)` per trovare le righe stale.
+Unique parziale su `(column_def_id, row_pk) WHERE is_current`. Indice su `(column_def_id, column_version_id)` per trovare le righe stale, e su `(column_def_id, created_at) WHERE NOT is_current` per la retention. `ai.prune` cancella le righe non correnti più vecchie di `lineage_retention_days`; le correnti restano sempre.
 
 ### spend
 
@@ -130,13 +130,13 @@ Non conta le chiamate fallite dopo essere state pagate (output fuori schema): la
 
 Gestione: `ai.add_column`, `ai.update_column` (nuova versione), `ai.configure` (policy senza versione), `ai.drop_column`, `ai.enable`, `ai.disable`, `ai.backfill`, `ai.unpin`, `ai.retry_dead`, `ai.prune_jobs`, `ai.spent(def_id, period)`. Ogni funzione ha un `COMMENT` leggibile con `\df+ ai.*`.
 
-Contratto worker: `ai.claim_jobs(worker_id, batch_size, backends[])`, `ai.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms, details)` che restituisce `ai.complete_outcome` (`written`, `held`, `stale_requeued`, `cancelled`), `ai.fail_job(job_id, error, retryable)` che restituisce lo stato risultante, `ai.reclaim_stale(timeout)`. `claim_jobs` fa avanzare i backfill in corso prima e dopo aver preso i job, salta le definizioni con budget esaurito e aggiunge ai job `decision` scelti i job `decision` pronti delle stesse righe e dello stesso modello, quindi può restituire più di `batch_size` righe. Canale `NOTIFY ai_jobs` con l'id della definizione a ogni accodamento e a ogni `ai.configure` (alzare un budget sveglia subito i worker).
+Contratto worker: `ai.claim_jobs(worker_id, batch_size, backends[])`, `ai.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms, details)` che restituisce `ai.complete_outcome` (`written`, `held`, `stale_requeued`, `cancelled`), `ai.fail_job(job_id, error, retryable)` che restituisce lo stato risultante, `ai.reclaim_stale(timeout)`, e per la manutenzione `ai.prune(limit, jobs_older_than)` che restituisce `(results, jobs)` cancellati, ciascuno al massimo `limit`. `claim_jobs` fa avanzare i backfill in corso prima e dopo aver preso i job, salta le definizioni con budget esaurito e aggiunge ai job `decision` scelti i job `decision` pronti delle stesse righe e dello stesso modello, quindi può restituire più di `batch_size` righe. Canale `NOTIFY ai_jobs` con l'id della definizione a ogni accodamento e a ogni `ai.configure` (alzare un budget sveglia subito i worker).
 
 Trigger per tabella utente: `ai_enqueue_<column>` (AFTER INSERT OR UPDATE OF sorgenti) e `ai_override_<column>` (AFTER UPDATE OF target). Il secondo ignora le scritture fatte dentro `complete_job` (GUC `ai.writer = 'worker'`); un UPDATE a NULL fatto a mano toglie il pin e riaccoda la riga.
 
 ## Ruoli e privilegi
 
-`ai_worker` (NOLOGIN, creato dall'install): `USAGE` sullo schema `ai`, `EXECUTE` su `claim_jobs`, `complete_job`, `fail_job`, `reclaim_stale` (revocato a `PUBLIC`), `SELECT` su `ai.columns`, `ai.budgets`, `ai.dead_jobs`, `ai.needs_review`, `ai.stale_rows`, `ai.cost_by_column`. Le quattro funzioni del contratto e le funzioni trigger `ai.enqueue_trigger` e `ai.override_trigger` sono `SECURITY DEFINER` con `search_path = pg_catalog, pg_temp`.
+`ai_worker` (NOLOGIN, creato dall'install): `USAGE` sullo schema `ai`, `EXECUTE` su `claim_jobs`, `complete_job`, `fail_job`, `reclaim_stale`, `prune` (revocato a `PUBLIC`), `SELECT` su `ai.columns`, `ai.budgets`, `ai.dead_jobs`, `ai.needs_review`, `ai.stale_rows`, `ai.cost_by_column`. Le funzioni del contratto, `ai.prune` e le funzioni trigger `ai.enqueue_trigger` e `ai.override_trigger` sono `SECURITY DEFINER` con `search_path = pg_catalog, pg_temp`.
 
 ## Relazioni
 

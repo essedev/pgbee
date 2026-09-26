@@ -22,6 +22,7 @@ CONTRACT = [
     "ai.complete_job(bigint, bytea, jsonb, real, text, jsonb, integer, jsonb)",
     "ai.fail_job(bigint, text, boolean)",
     "ai.reclaim_stale(interval)",
+    "ai.prune(integer, interval)",
 ]
 DEFINER = [*CONTRACT, "ai.enqueue_trigger()", "ai.override_trigger()"]
 
