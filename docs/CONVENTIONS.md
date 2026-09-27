@@ -33,6 +33,14 @@ Regole specifiche di questo progetto. Gli standard trasversali sono nel CLAUDE.m
 - I test del worker usano un provider finto etichettato come tale; i test contro OpenRouter vero portano il marker `llm` e sono esclusi dal giro di default.
 - I test che servono l'immagine con l'estensione (`CREATE EXTENSION`, catena di update, dump e restore) portano il marker `extension` e girano solo con `make test-extension`, su un container usa e getta.
 
+## Changelog e rilasci
+
+- `CHANGELOG.md` alla radice, in inglese, formato Keep a Changelog: sezione `## [Unreleased]` in cima, poi una sezione per rilascio, sottosezioni `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`, `Upgrading`. `.github/scripts/changelog.py check` lo valida in CI.
+- Ogni modifica che chi usa pgbee può notare aggiorna `Unreleased` nello stesso commit: funzioni o viste SQL, contratto del worker, CLI, variabili d'ambiente, comportamento, immagini. Refactor, test e doc interne no.
+- Si scrive per chi usa il progetto: cosa cambia per lui e cosa deve fare, non come è stato implementato. Una voce per cambiamento, con i nomi esatti (`bee.complete_job`, `PGBEE_PROVIDER`).
+- `Upgrading` è obbligatoria quando arrivano file SQL (quale versione dell'estensione, `pgbee install` o `ALTER EXTENSION pgbee UPDATE`), quando cambia il contratto del worker o quando serve un'azione manuale.
+- Rilascio, ogni passo su comando di Simone: versione in `worker/pyproject.toml` (più `uv lock`), `make changelog-release version=X.Y.Z` (sposta `Unreleased` nella versione con la data di oggi e aggiorna i link), commit `chore(release): X.Y.Z`, push, tag `vX.Y.Z` e push del tag. `release.yml` usa la sezione della versione come testo della release GitHub e si ferma prima di pubblicare se manca.
+
 ## Pulizia
 
 - Niente codice morto, niente TODO senza voce in ROADMAP.

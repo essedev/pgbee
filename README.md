@@ -213,7 +213,7 @@ make demo         # the Italian support-ticket demo, end to end
 make bench-failure  # the failure test above; bench-scale and bench-lanes too (bench/README.md)
 ```
 
-Design notes: [architecture](docs/ARCHITECTURE.md) (English). The working notes are in Italian: [analysis and competition](docs/ANALYSIS.md), [decisions](docs/DECISIONS.md), [database schema](docs/DATABASE_SCHEMA.md), [cycles](docs/CYCLES.md), [roadmap](docs/ROADMAP.md), [conventions](docs/CONVENTIONS.md).
+Changes between releases: [CHANGELOG.md](CHANGELOG.md). Design notes: [architecture](docs/ARCHITECTURE.md) (English). The working notes are in Italian: [analysis and competition](docs/ANALYSIS.md), [decisions](docs/DECISIONS.md), [database schema](docs/DATABASE_SCHEMA.md), [cycles](docs/CYCLES.md), [roadmap](docs/ROADMAP.md), [conventions](docs/CONVENTIONS.md).
 
 ## License
 

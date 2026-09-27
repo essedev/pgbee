@@ -1,5 +1,7 @@
 # Release on a version tag (v0.1.0): wheel and sdist to PyPI (trusted publishing), worker and
-# Postgres images to GHCR, extension files attached to the GitHub release.
+# Postgres images to GHCR, extension files attached to the GitHub release, whose text is the
+# version's section of CHANGELOG.md. The first job stops everything if the tag does not match the
+# package version or the changelog has no section for it (make changelog-release version=X.Y.Z).
 name: release
 
 on:
@@ -19,6 +21,8 @@ jobs:
         run: |
           version=$(grep -m1 '^version' worker/pyproject.toml | cut -d'"' -f2)
           test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, package $version"; exit 1; }
+      - name: Release notes from CHANGELOG.md
+        run: python3 .github/scripts/changelog.py notes "${GITHUB_REF_NAME#v}" > release-notes.md
       - run: cd worker && uv build
       - run: cd worker && uv sync --locked && uv run pgbee extension-files ../ext
       - run: tar -czf "pgbee-extension-${GITHUB_REF_NAME}.tar.gz" -C ext .
@@ -32,6 +36,10 @@ jobs:
           path: |
             ext/
             pgbee-extension-*.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
 
   pypi:
     needs: build
@@ -90,7 +98,10 @@ jobs:
         with:
           name: extension
           path: extension/
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
       - uses: softprops/action-gh-release@v2
         with:
           files: extension/pgbee-extension-*.tar.gz
-          generate_release_notes: true
+          body_path: release-notes.md

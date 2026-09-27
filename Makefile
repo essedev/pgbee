@@ -34,13 +34,13 @@ test-llm: ## Run also the tests that call a real model (costs money)
 	cd worker && uv run pytest -m 'not extension'
 
 lint: ## Lint
-	cd worker && uv run ruff check . ../demo ../bench
+	cd worker && uv run ruff check . ../demo ../bench ../.github/scripts
 
 format: ## Format
-	cd worker && uv run ruff format . ../demo ../bench
+	cd worker && uv run ruff format . ../demo ../bench ../.github/scripts
 
 typecheck: ## Type check
-	cd worker && uv run mypy src tests ../demo ../bench
+	cd worker && uv run mypy src tests ../demo ../bench ../.github/scripts
 
 check: ## Full quality pass (format, lint, typecheck, test)
 	$(MAKE) format
@@ -57,6 +57,15 @@ bench-scale: ## Declaration, bulk loads and claims on 1M rows (no model)
 
 bench-lanes: ## One loop against one lane per backend, simulated model latencies
 	cd worker && uv run python ../bench/lanes.py --out ../bench/results/lanes.json
+
+changelog-release: ## Turn Unreleased into a release in CHANGELOG.md (version=X.Y.Z, must match pyproject)
+	@test -n "$(version)" || (echo "usage: make changelog-release version=X.Y.Z" && exit 1)
+	@grep -q '^version = "$(version)"' worker/pyproject.toml || \
+		(echo "worker/pyproject.toml is not at $(version): bump it first" && exit 1)
+	python3 .github/scripts/changelog.py release $(version)
+
+release-notes: ## Print the GitHub release text of a version (version=X.Y.Z)
+	@python3 .github/scripts/changelog.py notes $(version)
 
 worker-image: ## Build the worker image pgbee-worker:dev (configuration from the environment only)
 	docker build -t pgbee-worker:dev worker

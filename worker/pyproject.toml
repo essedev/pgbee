@@ -24,6 +24,7 @@ dependencies = [
 Homepage = "https://github.com/essedev/pgbee"
 Repository = "https://github.com/essedev/pgbee"
 Issues = "https://github.com/essedev/pgbee/issues"
+Changelog = "https://github.com/essedev/pgbee/blob/main/CHANGELOG.md"
 
 [project.scripts]
 pgbee = "pgbee.cli:app"
