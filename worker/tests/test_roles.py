@@ -16,7 +16,7 @@ from pgbee.worker import Worker
 
 WORKER_ROLE = "pgbee_test_worker"
 APP_ROLE = "pgbee_test_app"
-PASSWORD = "test-only"
+PASSWORD = "Pgbee-Test-Only-7fK3q9Lx"  # strong: managed services (Neon) reject weak ones
 CONTRACT = [
     "bee.claim_jobs(text, integer, bee.backend[])",
     "bee.complete_job(bigint, bytea, jsonb, real, text, jsonb, integer, jsonb)",
@@ -37,13 +37,22 @@ def url_as(database_url: str, role: str) -> str:
 def roles(database_url: str) -> Iterator[None]:
     with psycopg.connect(database_url, autocommit=True) as admin:
         for role, extra in ((WORKER_ROLE, " IN ROLE bee_worker"), (APP_ROLE, "")):
-            admin.execute(f"DROP ROLE IF EXISTS {role}")
+            drop_role(admin, role)
             admin.execute(f"CREATE ROLE {role} LOGIN PASSWORD '{PASSWORD}'{extra}")
     yield
     with psycopg.connect(database_url, autocommit=True) as admin:
         for role in (WORKER_ROLE, APP_ROLE):
-            admin.execute(f"DROP OWNED BY {role}")
-            admin.execute(f"DROP ROLE {role}")
+            drop_role(admin, role)
+
+
+def drop_role(admin: psycopg.Connection[tuple[object, ...]], role: str) -> None:
+    """Without superuser (managed services), DROP OWNED needs the privileges of the role: the
+    creator has ADMIN on it since Postgres 16 and grants it to itself first."""
+    if admin.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone() is None:
+        return
+    admin.execute(f"GRANT {role} TO CURRENT_USER")
+    admin.execute(f"DROP OWNED BY {role}")
+    admin.execute(f"DROP ROLE {role}")
 
 
 @pytest.fixture

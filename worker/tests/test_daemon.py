@@ -157,7 +157,8 @@ async def test_daemon_prunes_on_start_and_every_interval(
         database_url, FakeProvider(), poll_interval=0.1, maintenance_interval=0.2
     )
     try:
-        await wait_until(lambda: filled(conn, 3))
+        # All three: jobs run in parallel, and one still running would get a fresh updated_at.
+        await wait_until(lambda: all(filled(conn, i) for i in (1, 2, 3)))
         conn.execute("UPDATE bee.job SET updated_at = now() - interval '8 days'")
         await wait_until(
             lambda: conn.execute("SELECT count(*) AS n FROM bee.job").fetchone() == {"n": 0}
