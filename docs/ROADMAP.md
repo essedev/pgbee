@@ -12,7 +12,7 @@ Estensione, worker e demo girano end to end contro OpenRouter o un endpoint comp
 - [x] Prova su un Postgres gestito: Neon, PostgreSQL 18 senza superuser. Suite completa (96 test) e `pgbee run` vero; col pooler in modalità transazione niente `LISTEN`, il worker va sull'host diretto (README). Supabase e RDS non provati.
 - [x] Repository pubblico (27 settembre 2026) e segnalazioni private di vulnerabilità attive.
 - [x] Rilascio `v0.1.0` (27 settembre 2026): `pgbee` 0.1.0 su PyPI (wheel e sdist), `ghcr.io/essedev/pgbee-worker:0.1.0` e `pgbee-postgres:0.1.0-pg17`/`-pg18` pubblici, release GitHub col testo del changelog e i file dell'estensione 0.14. Verificati dall'esterno: `uvx pgbee`, pull anonimo delle immagini.
-- [ ] Video di 30 secondi delle celle che si riempiono, per README e post.
+- [x] Video di presentazione (53 s): `assets/brand/pgbee-overview.mp4` con copertina, collegato dal README. Sorgente nel repo motion-studio di Yellow Tech (`src/videos/pgbee-cells/`). Per il player dentro il README va caricato dall'editor web di GitHub (Simone).
 
 ## Milestone aperte
 
