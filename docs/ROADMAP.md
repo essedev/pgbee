@@ -7,10 +7,10 @@ Estensione, worker e demo girano end to end contro OpenRouter o un endpoint comp
 ## Milestone corrente: pubblicazione 0.1.0
 
 - [x] Trusted publisher su PyPI (pending publisher per `pgbee`: `essedev/pgbee`, `release.yml`, environment `pypi`). Finché il progetto non esiste il nome non è riservato: primo rilascio a breve.
-- [ ] Environment `pypi` su GitHub con Simone come revisore obbligatorio, dopo il repository pubblico (sul privato i revisori richiedono un piano a pagamento): ogni pubblicazione su PyPI aspetta un'approvazione.
+- [x] Environment `pypi` su GitHub: Simone revisore obbligatorio, solo tag `v*`. Ogni pubblicazione su PyPI aspetta un'approvazione.
 - [ ] Anteprima social del repository: `assets/brand/png/pgbee-social.png` in Settings, Social preview (Simone).
 - [x] Prova su un Postgres gestito: Neon, PostgreSQL 18 senza superuser. Suite completa (96 test) e `pgbee run` vero; col pooler in modalità transazione niente `LISTEN`, il worker va sull'host diretto (README). Supabase e RDS non provati.
-- [ ] Repository pubblico e segnalazioni private di vulnerabilità attive (`SECURITY.md` rimanda lì), su comando di Simone.
+- [x] Repository pubblico (27 settembre 2026) e segnalazioni private di vulnerabilità attive.
 - [ ] Rilascio `v0.1.0` su comando: `make changelog-release version=0.1.0`, commit `chore(release): 0.1.0`, tag `v0.1.0` (deve coincidere con la versione in `worker/pyproject.toml` e avere la sua sezione in `CHANGELOG.md`, il workflow verifica entrambe). Il tag pubblica wheel su PyPI, immagini su GHCR e file dell'estensione nella release. Dopo il primo rilascio verificare che i package GHCR siano pubblici e collegati al repository.
 - [ ] Video di 30 secondi delle celle che si riempiono, per README e post.
 - [ ] Lancio: profilo X e avatar (`assets/brand/png/pgbee-avatar-512.png`); bozze dei post in inglese scritte dall'agent e approvate una per una da Simone; lo stesso materiale su LinkedIn, Hacker News (Show HN) e r/PostgreSQL. Apify per trovare chi discute già il problema (candidati alle interviste), Zernio solo per programmare post già approvati, niente risposte automatiche.
