@@ -79,16 +79,13 @@ Output types: `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector`
 
 ## Field test
 
-3000 real complaints from the public [CFPB Consumer Complaint Database](https://www.consumerfinance.gov/data-research/consumer-complaints/), nine products, four derived columns, the real worker process ([`demo/cfpb/`](demo/cfpb/)):
+3000 real complaints from the public [CFPB Consumer Complaint Database](https://www.consumerfinance.gov/data-research/consumer-complaints/), nine products, four derived columns on one table (two `decision`, one `llm`, one `embedding`), the real worker process until the queue was empty:
 
-| Column | Backend | Cost per 1000 rows | Median latency |
-|---|---|---|---|
-| product | `decision` (Jev) | 0.019 USD | 0.31 s |
-| lost money? | `decision`, same call | 0.019 USD | 0.31 s |
-| product | `llm` (gpt-6-luna, low effort) | 0.093 USD | 1.87 s |
-| embedding | `embedding` | 0.005 USD | 0.03 s |
+- **12,000 jobs, 0 failed, 0 retried, no manual step.** The backfill kept the queue at about one chunk per column, and the two `decision` columns of each row shared one model call.
+- **About 0.14 USD per 1000 rows** for all four columns, 0.41 USD in total, as recorded by `bee.cost_by_column`.
+- **Confidence sends the doubtful rows to review.** When a model was confident (0.9 or more), its answer matched the product the consumer picked 86-88% of the time; below 0.5, only 32-35%. With a 0.9 threshold, `bee.needs_review` holds about a fifth of the rows and 40-50% of the disagreements. The consumer's label is noisy, so this measures agreement, not accuracy.
 
-12,000 jobs, 0 failures, 0.41 USD in total. Both models agree with the product the consumer picked about 79% of the time. That label is noisy, so this measures agreement, not accuracy. When the models are confident (0.9 or more) the agreement is 86-88%; below 0.5 it drops to 32-35%. That is what the review queue is for.
+Script, per-model costs and latencies: [`demo/cfpb/`](demo/cfpb/).
 
 ## Under failure
 
