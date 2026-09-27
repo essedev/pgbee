@@ -453,7 +453,8 @@ def main() -> None:
         fake.stop()
     results = {
         "params": {
-            k: str(v) if isinstance(v, Path) else v
+            # Paths relative to the repository: results are committed.
+            k: os.path.relpath(v, HERE.parents[1]) if isinstance(v, Path) else v
             for k, v in vars(args).items()
             if k != "admin_url"
         },

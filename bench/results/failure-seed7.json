@@ -9,7 +9,7 @@
     "error_rate": 0.03,
     "lease": 10,
     "timeout": 600.0,
-    "out": "/Users/doppia/Development/Projects/ai-db/bench/results/failure-seed7.json"
+    "out": "bench/results/failure-seed7.json"
   },
   "operations": {
     "insert": 2000,
