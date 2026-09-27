@@ -6,7 +6,8 @@ Estensione, worker e demo girano end to end contro OpenRouter o un endpoint comp
 
 ## Milestone corrente: pubblicazione 0.1.0
 
-- [ ] Trusted publisher su PyPI per il progetto `pgbee`: repository `essedev/pgbee`, workflow `release.yml`, environment `pypi` (Simone, richiede il suo account).
+- [x] Trusted publisher su PyPI (pending publisher per `pgbee`: `essedev/pgbee`, `release.yml`, environment `pypi`). Finché il progetto non esiste il nome non è riservato: primo rilascio a breve.
+- [ ] Environment `pypi` su GitHub con Simone come revisore obbligatorio, dopo il repository pubblico (sul privato i revisori richiedono un piano a pagamento): ogni pubblicazione su PyPI aspetta un'approvazione.
 - [ ] Anteprima social del repository: `assets/brand/png/pgbee-social.png` in Settings, Social preview (Simone).
 - [x] Prova su un Postgres gestito: Neon, PostgreSQL 18 senza superuser. Suite completa (96 test) e `pgbee run` vero; col pooler in modalità transazione niente `LISTEN`, il worker va sull'host diretto (README). Supabase e RDS non provati.
 - [ ] Repository pubblico e segnalazioni private di vulnerabilità attive (`SECURITY.md` rimanda lì), su comando di Simone.
