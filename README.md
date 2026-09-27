@@ -195,7 +195,7 @@ With both keys set OpenRouter wins; `PGBEE_PROVIDER=openai` or `openrouter` forc
 
 - **Your data goes to the model provider.** Source column values are sent to the provider the worker uses (OpenRouter and the model behind it, OpenAI, Azure). Do not derive columns from data you may not share with them, or use a local model (Ollama, vLLM), where the data stays on your machines.
 - **Prompt injection.** Row text is model input. A row can contain instructions that bias its own value. Values are validated against the declared type (an enum stays an enum), but not against intent. Jev's documentation lists this as a known weakness.
-- **Confidence is a signal, not a guarantee.** It separates doubtful rows well in our tests, but it is not calibrated for LLMs.
+- **Confidence is a signal, not a guarantee.** It separated doubtful rows well in the field test, but it is not calibrated for LLMs.
 - **Budgets are checked when jobs are claimed**, so a cap can be exceeded by one batch in flight. Calls that were paid for but returned an invalid answer are not counted.
 - **One provider per worker process:** OpenRouter or one OpenAI-compatible endpoint (see [Model providers](#model-providers)). `decision` uses OpenRouter's decisions API, still marked alpha. Anything else means a provider class in the worker or your own worker: the SQL contract does not depend on any provider.
 - **Writing the value a cell already holds is not an override.** ORMs often rewrite every column on save, so only a change counts as a human correction.
