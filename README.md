@@ -7,11 +7,7 @@
 
 <p align="center">AI-derived columns for PostgreSQL</p>
 
-<p align="center">
-  <a href="assets/brand/pgbee-overview.mp4"><img alt="pgbee in 53 seconds: a table filled by a model, a crash that loses nothing, a human edit that sticks, a prompt change that reruns only model values" src="assets/brand/pgbee-overview-poster.jpg" width="720"></a>
-  <br>
-  <a href="assets/brand/pgbee-overview.mp4">Watch the 53-second overview</a>
-</p>
+https://github.com/user-attachments/assets/74aec8cd-bf80-423d-bfe9-67a49b83a422
 
 Like a worker bee filling cells: you declare how a column is derived from other columns, and pgbee keeps every row filled, versioned and accounted for.
 
