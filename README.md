@@ -211,6 +211,7 @@ make db-up        # Postgres for demo and tests on port 4460
 make check        # format, lint, typecheck, tests
 make test-llm     # also the tests that call OpenRouter (costs a fraction of a cent)
 make test-extension
+DATABASE_URL=postgresql://... make test   # the suite on another server; creates and drops a database aidb_test
 make demo         # the Italian support-ticket demo, end to end
 make bench-failure  # the failure test above; bench-scale and bench-lanes too (bench/README.md)
 ```

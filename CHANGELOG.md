@@ -30,5 +30,6 @@ First public release.
 ### Upgrading
 
 - Nothing to upgrade from. This release ships extension version 0.14 (SQL files 0001 to 0014). Install with `pgbee install`, or with `CREATE EXTENSION pgbee` after copying the files from `pgbee extension-files` (also attached to the GitHub release).
+- On managed services (tested on Neon) connect the worker directly, not through a transaction pooler: the pooler drops the notifications that wake the worker, which then only polls every `PGBEE_POLL_INTERVAL_SECONDS`.
 
 [Unreleased]: https://github.com/essedev/pgbee/commits/main
