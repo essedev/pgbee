@@ -1,4 +1,4 @@
-"""Build the pgbee brand files from the A2 mascot (see logo-options.html).
+"""Build the pgbee brand files from the A2 mascot (see logo-options.html, colours in logo-colors.html).
 
     uv run --no-project --with fonttools python assets/brand/build.py FONT_DIR
 
@@ -20,10 +20,11 @@ from fontTools.ttLib import TTFont
 OUT = Path(__file__).parent
 HONEY, HONEY_LIGHT, WING, INK = "#FFC21A", "#FFD95A", "#D6ECFF", "#1D1A16"
 CREAM, NIGHT = "#FFF8E7", "#17140F"
+CHESTNUT, CHOCOLATE, CHESTNUT_DARK = "#A0714A", "#3F2818", "#6E4726"
+# C1 (see logo-colors.html): chestnut family, the honey body is the only bright colour.
 THEMES = {
-    "light": {"line": INK, "pg": "#8A7F6A", "bee": INK, "tag": "#8A7F6A", "bg": CREAM},
-    # D2a: dark-honey outline (antennae stay visible on GitHub's #0d1117), honey wordmark.
-    "dark": {"line": "#8A6A1E", "pg": "#B08A2E", "bee": HONEY, "tag": "#8B949E", "bg": NIGHT},
+    "light": {"line": CHOCOLATE, "pg": CHESTNUT, "bee": CHOCOLATE, "tag": "#8A7F6A", "bg": CREAM},
+    "dark": {"line": CHESTNUT_DARK, "pg": CHESTNUT, "bee": HONEY, "tag": "#8B949E", "bg": NIGHT},
 }
 
 
@@ -107,7 +108,7 @@ def main(font_dir: Path) -> None:
     (OUT / "pgbee-social.svg").write_text(svg(1280, 640, social, bg=theme["bg"]))
 
     # Avatar: the mark on cream, with some air around it.
-    avatar = f'<g transform="translate(14 14) scale(0.8)">{mark(INK)}</g>'
+    avatar = f'<g transform="translate(14 14) scale(0.8)">{mark(THEMES["light"]["line"])}</g>'
     (OUT / "pgbee-avatar.svg").write_text(svg(120, 120, avatar, bg=CREAM))
 
     png = OUT / "png"
