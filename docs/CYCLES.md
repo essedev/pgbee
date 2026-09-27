@@ -157,4 +157,19 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 
 **Decisioni.** #24 (changelog scritto a mano come testo della release).
 
-**Prossimo passo.** Passi di Simone su PyPI e anteprima social, poi repository pubblico e rilascio `v0.1.0` su comando.
+**Prossimo passo.** Pubblicazione fatta nel ciclo stesso: resta l'anteprima social del repository (Simone), poi la presentazione pubblica del progetto.
+
+## Ciclo 11 (27 settembre 2026): presentazione pubblica dopo la 0.1.0
+
+**Obiettivo.** Rifinire ciò che vede chi arriva sul repository ora che è pubblico: logo, README, e separare i piani dell'autore dalla doc del progetto.
+
+**Fatto.**
+
+- Palette C1 per il logo chiaro e scuro (`assets/brand/build.py`): nel chiaro contorno e "bee" `#3F2818`, "pg" `#A0714A`; nello scuro contorno `#6E4726`, "pg" `#A0714A`, "bee" `#FFC21A`. Il corpo color miele resta l'unico colore acceso. `assets/brand/logo-colors.html` conserva le palette confrontate; PNG rigenerati.
+- README centrato su ciò che pgbee garantisce: via la riga "nobody runs it in production"; la prova sul campo riporta job, fallimenti, tracciamento dei costi e coda di revisione, mentre la tabella per modello (costo, latenza, accordo) passa in `demo/cfpb/README.md` con i comandi per rifarla, perché prezzi e latenze sono dei provider e invecchiano.
+- Piani di lancio, piano di validazione e offerta fuori dalla doc pubblica, in una cartella ignorata da git (#25): `ROADMAP.md` perde la milestone di lancio e il piano di validazione, `ANALYSIS.md` e `CYCLES.md` non li citano più, `ANALYSIS.md` toglie due giudizi sbrigativi su altri progetti.
+- Video di presentazione di 53 s sotto la tagline del README, come allegato GitHub (`user-attachments`): è l'unico modo in cui GitHub mostra un player in un README, un mp4 nel repository appariva come un link a una pagina che non lo riproduce. File e poster tolti dall'albero; sorgente e render nel repo motion-studio (`src/videos/pgbee-cells/`).
+
+**Decisioni.** #25 (piani dell'autore fuori dal repository pubblico).
+
+**Prossimo passo.** Anteprima social del repository (Simone); M4 (demo UI) solo se la demo convince.

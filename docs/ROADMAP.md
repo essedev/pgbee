@@ -2,20 +2,11 @@
 
 ## Stato corrente
 
-Estensione, worker e demo girano end to end contro OpenRouter o un endpoint compatibile OpenAI, con quattro backend (`llm`, `decision`, `embedding`, `custom`), tetto di spesa per colonna, backfill a chunk che regge tabelle da milioni di righe, worker con privilegi minimi, retention del lineage, packaging (wheel con i file SQL, `CREATE EXTENSION pgbee`, immagini Docker) e un ciclo di lavoro per backend. Provati sul campo su 3000 reclami reali CFPB: 12.000 job senza errori per 0.41 USD. Una review esterna ha trovato un bug di lineage sui cambi di versione, corretto nello 0011. Licenza Apache-2.0, CI verde su Postgres 15-18, rilascio automatico su tag, avvio rapido con `docker compose up`, README e `SECURITY.md` per chi arriva da fuori, logo e mascotte in `assets/brand/`. Repository `essedev/pgbee` pubblico su GitHub, 0.1.0 su PyPI e GHCR. Pronto per il lancio (ciclo 9): prova sotto guasti contro due progetti nel codice applicativo in `bench/failure/` (ha trovato un deadlock fra applicazione e `complete_job`, corretto nello 0014), provider compatibile OpenAI con prezzi per token (provato su Ollama), `pgbee run --drain` per cron e serverless, benchmark ripetibili in `bench/`. Cicli 1-9 in `CYCLES.md`, risultati in `ANALYSIS.md` e `bench/README.md`.
-
-## Milestone corrente: pubblicazione 0.1.0
-
-- [x] Trusted publisher su PyPI (pending publisher per `pgbee`: `essedev/pgbee`, `release.yml`, environment `pypi`). Finché il progetto non esiste il nome non è riservato: primo rilascio a breve.
-- [x] Environment `pypi` su GitHub: Simone revisore obbligatorio, solo tag `v*`. Ogni pubblicazione su PyPI aspetta un'approvazione.
-- [ ] Anteprima social del repository: `assets/brand/png/pgbee-social.png` in Settings, Social preview (Simone).
-- [x] Prova su un Postgres gestito: Neon, PostgreSQL 18 senza superuser. Suite completa (96 test) e `pgbee run` vero; col pooler in modalità transazione niente `LISTEN`, il worker va sull'host diretto (README). Supabase e RDS non provati.
-- [x] Repository pubblico (27 settembre 2026) e segnalazioni private di vulnerabilità attive.
-- [x] Rilascio `v0.1.0` (27 settembre 2026): `pgbee` 0.1.0 su PyPI (wheel e sdist), `ghcr.io/essedev/pgbee-worker:0.1.0` e `pgbee-postgres:0.1.0-pg17`/`-pg18` pubblici, release GitHub col testo del changelog e i file dell'estensione 0.14. Verificati dall'esterno: `uvx pgbee`, pull anonimo delle immagini.
-- [x] Video di presentazione (53 s) nel README, come allegato GitHub (`user-attachments`, l'unico modo in cui il README mostra un player). Sorgente e render nel repo motion-studio di Yellow Tech (`src/videos/pgbee-cells/`).
+Estensione, worker e demo girano end to end contro OpenRouter o un endpoint compatibile OpenAI, con quattro backend (`llm`, `decision`, `embedding`, `custom`), tetto di spesa per colonna, backfill a chunk che regge tabelle da milioni di righe, worker con privilegi minimi, retention del lineage, packaging (wheel con i file SQL, `CREATE EXTENSION pgbee`, immagini Docker) e un ciclo di lavoro per backend. Provati sul campo su 3000 reclami reali CFPB: 12.000 job senza errori per 0.41 USD. Una review esterna ha trovato un bug di lineage sui cambi di versione, corretto nello 0011. Licenza Apache-2.0, CI verde su Postgres 15-18, rilascio automatico su tag, avvio rapido con `docker compose up`, README e `SECURITY.md` per chi arriva da fuori, logo e mascotte in `assets/brand/`. Prova sotto guasti contro due progetti nel codice applicativo in `bench/failure/` (ha trovato un deadlock fra applicazione e `complete_job`, corretto nello 0014), provider compatibile OpenAI con prezzi per token (provato su Ollama), `pgbee run --drain` per cron e serverless, benchmark ripetibili in `bench/`, prova su Neon. Repository `essedev/pgbee` pubblico, 0.1.0 su PyPI e GHCR dal 27 settembre 2026 (ciclo 10), README con video di presentazione di 53 s. Cicli 1-11 in `CYCLES.md`, risultati in `ANALYSIS.md`, `bench/README.md` e `demo/cfpb/README.md`.
 
 ## Milestone aperte
 
+- [ ] Anteprima social del repository: `assets/brand/png/pgbee-social.png` in Settings, Social preview (Simone). Unico passo rimasto della pubblicazione 0.1.0.
 - [ ] M4 Demo UI: piccola app che mostra la tabella e le celle che si riempiono, la coda di revisione e il lineage di una cella. Solo se la demo convince. Porte riservate: API 4461, web 4462.
 
 ## Più avanti
