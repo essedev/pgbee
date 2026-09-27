@@ -142,3 +142,18 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 **Decisioni.** #22 (provider compatibile OpenAI, uno per worker, prezzi nella config), #23 (modalità drain).
 
 **Prossimo passo.** La milestone di pubblicazione in `ROADMAP.md`: passi di Simone su PyPI e GitHub, prova su un Postgres gestito, repository pubblico e tag su comando.
+
+## Ciclo 10 (27 settembre 2026): changelog e prova su Postgres gestito
+
+**Obiettivo.** Rilasci con note scritte per chi usa il progetto, e la prima prova fuori da Postgres in Docker.
+
+**Fatto.**
+
+- `CHANGELOG.md` in formato Keep a Changelog con il contenuto della 0.1.0 in `Unreleased`; `.github/scripts/changelog.py` (solo libreria standard) lo valida in CI, estrae la sezione di una versione e trasforma `Unreleased` in rilascio; `release.yml` usa quella sezione come testo della release GitHub e si ferma prima di pubblicare se manca (le note generate da GitHub, costruite dalle pull request, sarebbero uscite vuote). `make changelog-release`, `make release-notes`, regole e procedura in `CONVENTIONS.md`, `actionlint` pulito.
+- Neon, PostgreSQL 18.6, ruolo proprietario con `CREATEROLE` ma senza superuser: la suite completa passa (96 test) e `pgbee run` vero riempie le righe con un modello finto locale, `--drain` compreso. Dall'INSERT al valore 0.3 s sull'host diretto, 3.9 s attraverso il pooler `-pooler`: PgBouncer in modalità transazione perde i `NOTIFY` e il worker trova i job al giro di polling; nient'altro si rompe, prepared statement compresi. README: il worker usa l'host diretto, l'applicazione può restare sul pooler.
+- Tre difetti dei test emersi su Neon, nessuno di pgbee: una password di prova troppo debole per la policy di Neon, `DROP OWNED BY` su un ruolo di prova che senza superuser richiede di assegnarsi prima il ruolo (Postgres 16+), un test di manutenzione che invecchiava i job prima che finissero tutti (la latenza di rete ha allargato la finestra).
+- Database di Neon ripulito a fine prova: schema `bee`, ruolo `bee_worker`, database dei test.
+
+**Decisioni.** #24 (changelog scritto a mano come testo della release).
+
+**Prossimo passo.** Passi di Simone su PyPI e anteprima social, poi repository pubblico e rilascio `v0.1.0` su comando.

@@ -21,7 +21,7 @@ From then on every new or changed row gets its `category`: the database queues t
 
 Calling a model from SQL is easy and many tools do it. The hard part, and the point of pgbee, is the state around the call: what is stale, what was overridden, what failed, what it costs. [Under failure](#under-failure) shows what goes wrong when that state lives in application code instead.
 
-**Status: alpha (0.1).** The test suite passes on PostgreSQL 15, 16, 17 and 18. A field test on 3000 real consumer complaints ran 12,000 model calls with no failure, and a failure test with crashes, outages and concurrent edits ended with no wrong value (numbers below). Nobody runs it in production yet, and managed Postgres services have not been tested. Feedback and issues are welcome.
+**Status: alpha (0.1).** The test suite passes on PostgreSQL 15, 16, 17 and 18. A field test on 3000 real consumer complaints ran 12,000 model calls with no failure, and a failure test with crashes, outages and concurrent edits ended with no wrong value (numbers below). The whole suite and the worker also ran on a managed service, Neon (PostgreSQL 18, no superuser). Nobody runs it in production yet. Feedback and issues are welcome.
 
 ## Quickstart
 
@@ -182,7 +182,9 @@ With both keys set OpenRouter wins; `PGBEE_PROVIDER=openai` or `openrouter` forc
 
 ## Installing on your database
 
-**Any Postgres 15+, managed ones included:** run `pgbee install` with a `DATABASE_URL` whose role can create schemas and roles (`CREATEROLE`). It creates the `bee` schema and the `bee_worker` role. Without `CREATEROLE`, a superuser creates `bee_worker` once (`CREATE ROLE bee_worker NOLOGIN`) and the install goes on. pgvector is needed only for `vector` columns.
+**Any Postgres 15+, managed ones included:** run `pgbee install` with a `DATABASE_URL` whose role can create schemas and roles (`CREATEROLE`). It creates the `bee` schema and the `bee_worker` role. Without `CREATEROLE`, a superuser creates `bee_worker` once (`CREATE ROLE bee_worker NOLOGIN`) and the install goes on. pgvector is needed only for `vector` columns. Tested on Neon with the owner role the console creates.
+
+**Use a direct connection for the worker, not a transaction pooler.** The worker wakes up on `LISTEN bee_jobs`, which needs a session: through a transaction pooler (PgBouncer, Neon's `-pooler` host, Supabase's pooler on port 6543) the notifications are lost and the worker only finds new jobs at its poll interval (`PGBEE_POLL_INTERVAL_SECONDS`, default 5). Everything else works there. On Neon, from insert to written value: 0.3 s with the direct host, 3.9 s through the pooler. Your application can keep using the pooler.
 
 **Self-hosted, as a real extension:** `pgbee extension-files ./ext`, copy the files into `$(pg_config --sharedir)/extension/`, then `CREATE EXTENSION pgbee`. Upgrades with `ALTER EXTENSION pgbee UPDATE`, and `pg_dump` keeps the definitions, lineage and spend. The two ways are generated from the same SQL files and are mutually exclusive on a database.
 

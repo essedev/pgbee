@@ -8,7 +8,7 @@ Estensione, worker e demo girano end to end contro OpenRouter o un endpoint comp
 
 - [ ] Trusted publisher su PyPI per il progetto `pgbee`: repository `essedev/pgbee`, workflow `release.yml`, environment `pypi` (Simone, richiede il suo account).
 - [ ] Anteprima social del repository: `assets/brand/png/pgbee-social.png` in Settings, Social preview (Simone).
-- [ ] Prova su un Postgres gestito (Neon, Supabase o RDS) con `pgbee install`: serve la stringa di connessione di un database di prova. Il README dichiara che non è ancora stato fatto.
+- [x] Prova su un Postgres gestito: Neon, PostgreSQL 18 senza superuser. Suite completa (96 test) e `pgbee run` vero; col pooler in modalità transazione niente `LISTEN`, il worker va sull'host diretto (README). Supabase e RDS non provati.
 - [ ] Repository pubblico e segnalazioni private di vulnerabilità attive (`SECURITY.md` rimanda lì), su comando di Simone.
 - [ ] Rilascio `v0.1.0` su comando: `make changelog-release version=0.1.0`, commit `chore(release): 0.1.0`, tag `v0.1.0` (deve coincidere con la versione in `worker/pyproject.toml` e avere la sua sezione in `CHANGELOG.md`, il workflow verifica entrambe). Il tag pubblica wheel su PyPI, immagini su GHCR e file dell'estensione nella release. Dopo il primo rilascio verificare che i package GHCR siano pubblici e collegati al repository.
 - [ ] Video di 30 secondi delle celle che si riempiono, per README e post.
