@@ -114,7 +114,7 @@ Letture:
 - Le perdite dei progetti nel codice non vengono dalla coda ma da ciò che il codice non sa: quale versione di prompt e di testo ha prodotto un valore, e se un valore l'ha scritto una persona. È esattamente la parte che pgbee mette nel database.
 - I valori vecchi crescono con l'attesa in coda (le prove giravano su una macchina carica); gli zeri di pgbee non dipendono dai tempi.
 - La prova ha trovato un deadlock in pgbee fra l'UPDATE dell'applicazione e `complete_job`, che poteva far fallire una scrittura dell'utente: corretto nello 0014 prima di misurare. Il test di carico va rifatto a ogni cambio del contratto.
-- Non dice nulla sulla domanda: che il problema esista e sia risolto non prova che qualcuno lo voglia comprare o adottare. Quello resta al piano di validazione in `ROADMAP.md`.
+- Non dice nulla sulla domanda: che il problema esista e sia risolto non prova che qualcuno lo voglia comprare o adottare. Quello si verifica solo con utenti esterni.
 
 ## Criterio di uscita
 

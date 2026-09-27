@@ -106,7 +106,7 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 - `demo/cfpb/field_test.py` stampa la stima (0.000136 USD per riga, misurata sulla prova completa) e chiede conferma prima di spendere, `--yes` salta la domanda, come `demo/run.py`.
 - `ANALYSIS.md`: il 79 per cento della prova sul campo è accordo con un'etichetta rumorosa, non un limite inferiore dimostrato dell'accuratezza.
 
-**Decisioni.** Nessuna nuova: lo 0011 ripristina l'invariante di #4 (ogni risultato riferisce la versione che l'ha prodotto). La review ha proposto anche un piano di validazione in quattro settimane, registrato in `ROADMAP.md` come proposta in attesa di verdetto.
+**Decisioni.** Nessuna nuova: lo 0011 ripristina l'invariante di #4 (ogni risultato riferisce la versione che l'ha prodotto). La review ha proposto anche un piano di validazione in quattro settimane, tenuto fuori dal repository come proposta in attesa di verdetto.
 
 **Prossimo passo.** Decidere sul piano di validazione; se passa, sostituisce la valutazione del criterio di uscita in `ANALYSIS.md` fatta solo sui dati propri.
 

@@ -13,23 +13,11 @@ Estensione, worker e demo girano end to end contro OpenRouter o un endpoint comp
 - [x] Repository pubblico (27 settembre 2026) e segnalazioni private di vulnerabilità attive.
 - [x] Rilascio `v0.1.0` (27 settembre 2026): `pgbee` 0.1.0 su PyPI (wheel e sdist), `ghcr.io/essedev/pgbee-worker:0.1.0` e `pgbee-postgres:0.1.0-pg17`/`-pg18` pubblici, release GitHub col testo del changelog e i file dell'estensione 0.14. Verificati dall'esterno: `uvx pgbee`, pull anonimo delle immagini.
 - [ ] Video di 30 secondi delle celle che si riempiono, per README e post.
-- [ ] Lancio: X, LinkedIn, Hacker News (Show HN), r/PostgreSQL (Simone).
-
-## Dopo la pubblicazione: piano di validazione (proposto, in attesa di verdetto)
-
-Piano in quattro settimane emerso dalla review esterna, al posto della valutazione del criterio di uscita in `ANALYSIS.md` fatta solo sui dati propri. Non ratificato: se Simone lo approva, i criteri sostituiscono quel criterio di uscita.
-
-- [ ] Interviste a 8 responsabili tecnici, di cui 4 esterni.
-- [ ] Due installazioni reali.
-- [ ] Prove sotto guasto su un'installazione vera.
-- [ ] Un pilota a pagamento.
-
-Criteri di esito: **prodotto** se due gruppi esterni lo usano da soli e uno paga; **strumento interno** se risparmia lavoro solo nei progetti di consulenza dell'autore; altrimenti **chiusura**, e resta il modello concettuale.
 
 ## Milestone aperte
 
 - [ ] M4 Demo UI: piccola app che mostra la tabella e le celle che si riempiono, la coda di revisione e il lineage di una cella. Solo se la demo convince. Porte riservate: API 4461, web 4462.
 
-## Dopo l'esperimento (solo se passa)
+## Più avanti
 
-Worker ospitato (ci si collega il proprio database e il worker gira come servizio: risolve chi non può tenere un processo acceso ed è l'offerta commerciale più naturale), few-shot dagli override umani, chunking con destinazione a tabella (per `DECISIONS.md` #11), pubblicazione su PGXN o `pg_tle` (per `DECISIONS.md` #18), worker in Rust (per `DECISIONS.md` #3: solo se i primi utenti chiedono un eseguibile senza Python; non renderebbe il worker più veloce, perché aspetta i modelli), estensione SQLite con lo stesso modello concettuale.
+Worker ospitato (ci si collega il proprio database e il worker gira come servizio: risolve chi non può tenere un processo acceso), few-shot dagli override umani, chunking con destinazione a tabella (per `DECISIONS.md` #11), pubblicazione su PGXN o `pg_tle` (per `DECISIONS.md` #18), worker in Rust (per `DECISIONS.md` #3: solo se i primi utenti chiedono un eseguibile senza Python; non renderebbe il worker più veloce, perché aspetta i modelli), estensione SQLite con lo stesso modello concettuale.
