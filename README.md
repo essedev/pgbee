@@ -19,13 +19,13 @@ SELECT bee.add_column('ticket', 'category', array['body'], 'enum', 'decision',
 
 From then on every new or changed row gets its `category`: the database queues the work in the same transaction as your insert, an external worker calls the model, and the value lands in the column. Change the prompt and only the rows computed with the old one are recomputed. Correct a value by hand and the model never overwrites it. Every value keeps its lineage: which model, which prompt version, which confidence, how much it cost.
 
-Calling a model from SQL is easy and many tools do it. The hard part, and the point of pgbee, is the state around the call: what is stale, what was overridden, what failed, what it costs.
+Calling a model from SQL is easy and many tools do it. The hard part, and the point of pgbee, is the state around the call: what is stale, what was overridden, what failed, what it costs. [Under failure](#under-failure) shows what goes wrong when that state lives in application code instead.
 
-**Status: alpha (0.1).** The test suite passes on PostgreSQL 15, 16, 17 and 18. A field test on 3000 real consumer complaints ran 12,000 model calls with no failure (numbers below). Nobody runs it in production yet, and managed Postgres services have not been tested. Feedback and issues are welcome.
+**Status: alpha (0.1).** The test suite passes on PostgreSQL 15, 16, 17 and 18. A field test on 3000 real consumer complaints ran 12,000 model calls with no failure, and a failure test with crashes, outages and concurrent edits ended with no wrong value (numbers below). Nobody runs it in production yet, and managed Postgres services have not been tested. Feedback and issues are welcome.
 
 ## Quickstart
 
-You need Docker and an [OpenRouter](https://openrouter.ai) key (for OpenAI, Azure or a local model, see [Model providers](#model-providers)).
+You need Docker and an [OpenRouter](https://openrouter.ai) key: the example uses a decision model that is only available there. The worker also runs on OpenAI, Azure or a local model, see [Model providers](#model-providers).
 
 ```bash
 git clone https://github.com/essedev/pgbee && cd pgbee
@@ -56,7 +56,7 @@ The whole run costs about 0.0005 USD. Postgres listens on port 5432; set `PGBEE_
 INSERT/UPDATE ──trigger──▶ bee.job (queue, same transaction)
                                │  NOTIFY bee_jobs
                                ▼
-                 worker: bee.claim_jobs ──▶ model (OpenRouter)
+                 worker: bee.claim_jobs ──▶ model (OpenRouter, OpenAI, local)
                                │
                                ▼
       bee.complete_job ──▶ target column + bee.result (lineage) + bee.spend
@@ -192,7 +192,7 @@ With both keys set OpenRouter wins; `PGBEE_PROVIDER=openai` or `openrouter` forc
 
 ## Limits and security
 
-- **Your data goes to model providers.** Source column values are sent through OpenRouter to the model you choose. Do not derive columns from data you may not share with them.
+- **Your data goes to the model provider.** Source column values are sent to the provider the worker uses (OpenRouter and the model behind it, OpenAI, Azure). Do not derive columns from data you may not share with them, or use a local model (Ollama, vLLM), where the data stays on your machines.
 - **Prompt injection.** Row text is model input. A row can contain instructions that bias its own value. Values are validated against the declared type (an enum stays an enum), but not against intent. Jev's documentation lists this as a known weakness.
 - **Confidence is a signal, not a guarantee.** It separates doubtful rows well in our tests, but it is not calibrated for LLMs.
 - **Budgets are checked when jobs are claimed**, so a cap can be exceeded by one batch in flight. Calls that were paid for but returned an invalid answer are not counted.
