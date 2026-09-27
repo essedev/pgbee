@@ -153,6 +153,7 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 - Neon, PostgreSQL 18.6, ruolo proprietario con `CREATEROLE` ma senza superuser: la suite completa passa (96 test) e `pgbee run` vero riempie le righe con un modello finto locale, `--drain` compreso. Dall'INSERT al valore 0.3 s sull'host diretto, 3.9 s attraverso il pooler `-pooler`: PgBouncer in modalità transazione perde i `NOTIFY` e il worker trova i job al giro di polling; nient'altro si rompe, prepared statement compresi. README: il worker usa l'host diretto, l'applicazione può restare sul pooler.
 - Tre difetti dei test emersi su Neon, nessuno di pgbee: una password di prova troppo debole per la policy di Neon, `DROP OWNED BY` su un ruolo di prova che senza superuser richiede di assegnarsi prima il ruolo (Postgres 16+), un test di manutenzione che invecchiava i job prima che finissero tutti (la latenza di rete ha allargato la finestra).
 - Database di Neon ripulito a fine prova: schema `bee`, ruolo `bee_worker`, database dei test.
+- Pubblicazione: controllo della storia prima di aprire (un solo autore con email personale, nessun segreto, nessun `.env`), repository pubblico con segnalazioni private di vulnerabilità, environment `pypi` con revisore obbligatorio e solo tag `v*`, rilascio `v0.1.0` approvato a mano: PyPI, immagini GHCR pubbliche, release GitHub dal changelog.
 
 **Decisioni.** #24 (changelog scritto a mano come testo della release).
 
