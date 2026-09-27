@@ -40,7 +40,7 @@ Vedi `docs/CONVENTIONS.md`. Le regole per i file SQL sono in `.claude/rules/sql-
 - Push solo su comando esplicito; `release.yml` pubblica su PyPI e GHCR a ogni tag `v*`, quindi anche un tag è un'azione verso l'esterno.
 - Una modifica visibile a chi usa pgbee aggiorna `## [Unreleased]` in `CHANGELOG.md` nello stesso commit; regole e procedura di rilascio in `docs/CONVENTIONS.md` (Changelog e rilasci).
 - Test che chiamano un modello vero portano il marker `llm`, escluso dal giro di default.
-- `docs/private/` è in `.gitignore`: strategia, lancio, validazione e offerta commerciale (`STRATEGY.md`). Si legge e si aggiorna, non si committa e nessun doc pubblico la cita.
+- `docs/private/` è in `.gitignore`: strategia, lancio, validazione e offerta commerciale (`STRATEGY.md`), voce e procedura per scrivere post e articoli su pgbee (`VOICE.md`, da leggere per intero prima di scriverne uno). Si legge e si aggiorna, non si committa e nessun doc pubblico la cita.
 - Costi: ogni batch verso OpenRouter costa. `demo/run.py` e `demo/cfpb/field_test.py` (0.41 USD per 3000 righe) stampano la stima e chiedono conferma; con `--yes` non chiedono. Prima di lanciarla su più di qualche decina di righe, dichiarare la stima.
 - L'SDK `openai` 3.x usa il pacchetto `httpx2`, non `httpx`: nei test le eccezioni si costruiscono con `httpx2.Request` e `httpx2.Response`.
 - La demo si lancia dalla cartella `worker` (`make demo`) perché importa il pacchetto `pgbee`.
