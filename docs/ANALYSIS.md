@@ -8,7 +8,7 @@ Colonne derivate affidabili per PostgreSQL: dichiari che una colonna si ricava d
 
 ## Cosa non è
 
-Non è "una funzione SQL che chiama l'LLM". Quella esiste da anni (pgai, pg_ai, postgres-llm, Cortex, Databricks AI functions) e si copia in un fine settimana. Il valore sta nella parte che nessuno ha fatto bene: la garanzia che ogni riga prima o poi abbia il suo valore, che si sappia quale modello e quale prompt l'hanno prodotto, che cambiare il prompt ricalcoli solo ciò che serve, e che una correzione umana non venga sovrascritta.
+Non è "una funzione SQL che chiama l'LLM". Quella esiste da anni (pgai, pg_ai, postgres-llm, Cortex, Databricks AI functions) ed è semplice da scrivere. Il valore sta nella parte che nessuno copre per intero: la garanzia che ogni riga prima o poi abbia il suo valore, che si sappia quale modello e quale prompt l'hanno prodotto, che cambiare il prompt ricalcoli solo ciò che serve, e che una correzione umana non venga sovrascritta.
 
 ## Perché ora
 
@@ -27,7 +27,7 @@ L'uscita di Timescale ammette due letture. La prima: non c'è domanda pagante, c
 | pgai (Timescale) | Funzioni SQL sincrone verso i provider più vectorizer con coda e worker Python | Archiviato. Solo embedding nel vectorizer, niente versioning per riga, confidenza, override |
 | Supabase automatic embeddings | Guida da assemblare: trigger, pgmq, pg_cron, Edge Function. Batch e retry | Solo embedding. Niente versioning, confidenza, override, ricalcolo al cambio config. Non è un prodotto |
 | pg_vectorize (Tembo) | Attivo. Embedding job su pgmq con worker | Solo embedding |
-| postgres-llm (JigsawStack) | Trigger, coda, pg_cron, output JSON strutturato, retry. Il più vicino come concetto | 56 stelle, 14 commit. Niente batch, versioning, confidenza, override. Il DB chiama fuori via estensione `http` |
+| postgres-llm (JigsawStack) | Trigger, coda, pg_cron, output JSON strutturato, retry. Il più vicino come concetto | Niente batch, versioning, confidenza, override. Il DB chiama fuori via estensione `http` |
 | PostgresML | Modelli dentro Postgres con GPU | Altro problema (inferenza in-DB), pesante da operare |
 | SQLite-AI (SQLite Cloud) | Modelli GGUF locali, embedding, chat, Whisper da SQL | Funzioni da chiamare, non colonne mantenute |
 | Snowflake Cortex, Databricks, BigQuery | `AI_CLASSIFY`, `ai_extract` nativi | Warehouse. Chiamate sincrone nella query, non colonne mantenute con lineage |
