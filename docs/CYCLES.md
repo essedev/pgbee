@@ -188,3 +188,20 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 **Decisioni.** #26 (`halfvec` come tipo di output a sé).
 
 **Prossimo passo.** Raccogliere gli altri attriti dell'integrazione (installazione prima delle migrazioni dell'applicazione, test dell'applicazione che fanno da worker, backend `custom` per l'OCR) e decidere quali diventano prodotto.
+
+## Ciclo 13 (30 settembre 2026): righe cancellate, vettori e rilascio 0.3.0
+
+**Obiettivo.** Chiudere i difetti emersi dal primo uso in un'applicazione (ingestion di documenti: un job `custom` scrive il markdown e sostituisce i chunk di una tabella collegata, la colonna `embedding` dei chunk è derivata).
+
+**Fatto.**
+
+- Trigger `bee_forget_<colonna>` e `bee_forget_all_<colonna>` (0016): una riga cancellata o una tabella troncata esce dal lineage corrente e perde i job vivi. Correggono due difetti: i chunk riscritti a ogni reingestione lasciavano risultati correnti orfani che `bee.prune` non toccava, e una riga cancellata e reinserita con stessa chiave e stesse sorgenti non veniva mai calcolata. L'aggiornamento ritira gli orfani esistenti con un anti-join per tabella.
+- I risultati delle colonne `vector` e `halfvec` non copiano più il vettore in `bee.result.value`: in jsonb pesava dieci volte la colonna.
+- `bee.definition(tabella, colonna)`: la definizione corrente senza i contatori della coda, per l'applicazione che deve incorporare le query con lo stesso modello della colonna a ogni richiesta.
+- README: sezione su come testare un'applicazione che usa pgbee facendo da worker con `claim_jobs` e `complete_job`, la stessa ricetta con cui l'applicazione testa l'ingestion.
+- Prova sotto guasti rilanciata dopo la ridefinizione di `complete_job`: pgbee a zero su righe senza valore, valori vecchi e correzioni sovrascritte (seed 7, 47 processi uccisi). Il file di risultati citato nel README non è stato sostituito.
+- Rilascio 0.3.0: estensione 0.16. 105 test più 4 di estensione, tra cui l'aggiornamento dalla 0.15 con orfani e vettori già salvati.
+
+**Decisioni.** #27 (righe cancellate fuori dal lineage corrente), #28 (vettori fuori dal lineage).
+
+**Prossimo passo.** L'applicazione passa a `bee.definition` al posto della lettura delle tabelle interne; la destinazione a tabella per il chunking resta rinviata finché non arriva un secondo caso.
