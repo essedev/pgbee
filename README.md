@@ -74,10 +74,10 @@ INSERT/UPDATE ──trigger──▶ bee.job (queue, same transaction)
 |---|---|---|
 | `llm` | Structured output from a language model, with self-reported confidence | any chat model with JSON schema output, e.g. `openai/gpt-6-luna` on OpenRouter |
 | `decision` | Typed questions (choice, yes/no, rubric score) to a decision model, with class probabilities | `typesafe/jev-1.13`, OpenRouter only |
-| `embedding` | One vector per row, batched | e.g. `openai/text-embedding-3-small` |
+| `embedding` | One vector per row, batched, as `vector` or `halfvec` | e.g. `openai/text-embedding-3-small` |
 | `custom` | Your own worker claims these jobs (`claim_jobs(..., array['custom'])`) | anything |
 
-Output types: `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector` (needs pgvector). The `decision` backend covers `enum`, `boolean`, `integer` and `numeric`. Several `decision` columns on the same row share one model call.
+Output types: `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector` and `halfvec` (need pgvector; `halfvec` needs 0.7 or later, takes half the space and can be indexed with HNSW up to 4000 dimensions instead of 2000). The `decision` backend covers `enum`, `boolean`, `integer` and `numeric`. Several `decision` columns on the same row share one model call.
 
 ## Field test
 
@@ -116,7 +116,7 @@ The outbox fixes lost rows and nothing else: stale values come from rows edited 
 | `bee.retry_dead(p_table, p_column)` | Puts failed jobs back in the queue. |
 | `bee.spent(p_def_id, p_period)` | USD spent by a column in the current day, month, or in total. |
 
-Parameters are named with a `p_` prefix, so named notation reads `p_prompt => '...'`. `p_output_schema`: for `enum` an array of values or an object `{"value": "description"}` (descriptions are required by `decision`); for `vector` `{"dimensions": N}`; for `decision` scores `{"levels": [...]}`. `p_backend_config` is passed to the provider: `{"reasoning": {"effort": "low"}}`, `temperature`, `max_tokens`, `dimensions`, `batch_size` for embeddings.
+Parameters are named with a `p_` prefix, so named notation reads `p_prompt => '...'`. `p_output_schema`: for `enum` an array of values or an object `{"value": "description"}` (descriptions are required by `decision`); for `vector` and `halfvec` `{"dimensions": N}`; for `decision` scores `{"levels": [...]}`. `p_backend_config` is passed to the provider: `{"reasoning": {"effort": "low"}}`, `temperature`, `max_tokens`, `dimensions`, `batch_size` for embeddings.
 
 ### Settings (`p_config`, per column)
 
@@ -181,7 +181,7 @@ With both keys set OpenRouter wins; `PGBEE_PROVIDER=openai` or `openrouter` forc
 
 ## Installing on your database
 
-**Any Postgres 15+, managed ones included:** run `pgbee install` with a `DATABASE_URL` whose role can create schemas and roles (`CREATEROLE`). It creates the `bee` schema and the `bee_worker` role. Without `CREATEROLE`, a superuser creates `bee_worker` once (`CREATE ROLE bee_worker NOLOGIN`) and the install goes on. pgvector is needed only for `vector` columns. Tested on Neon with the owner role the console creates.
+**Any Postgres 15+, managed ones included:** run `pgbee install` with a `DATABASE_URL` whose role can create schemas and roles (`CREATEROLE`). It creates the `bee` schema and the `bee_worker` role. Without `CREATEROLE`, a superuser creates `bee_worker` once (`CREATE ROLE bee_worker NOLOGIN`) and the install goes on. pgvector is needed only for `vector` and `halfvec` columns. Tested on Neon with the owner role the console creates.
 
 **Use a direct connection for the worker, not a transaction pooler.** The worker wakes up on `LISTEN bee_jobs`, which needs a session: through a transaction pooler (PgBouncer, Neon's `-pooler` host, Supabase's pooler on port 6543) the notifications are lost and the worker only finds new jobs at its poll interval (`PGBEE_POLL_INTERVAL_SECONDS`, default 5). Everything else works there. On Neon, from insert to written value: 0.3 s with the direct host, 3.9 s through the pooler. Your application can keep using the pooler.
 

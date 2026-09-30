@@ -6,6 +6,14 @@ The package version (`0.1.0`) and the extension version (`0.N`, one per SQL file
 
 ## [Unreleased]
 
+### Added
+
+- Output type `halfvec` for the `embedding` backend: `bee.add_column(..., 'halfvec', 'embedding', p_output_schema => '{"dimensions": N}')` writes half-precision vectors to a pgvector `halfvec(N)` column. Half the storage of `vector`, and HNSW indexes it up to 4000 dimensions instead of 2000, enough for 3072-dimension models. Needs pgvector 0.7 or later; an existing `halfvec(N)` column is used as the target.
+
+### Upgrading
+
+- Extension version 0.15 (`0015_halfvec.sql`): run `pgbee install`, or `ALTER EXTENSION pgbee UPDATE` where pgbee is installed as an extension. The worker contract does not change; a worker from 0.1.0 already writes `halfvec` columns.
+
 ## [0.1.0] - 2026-09-27
 
 First public release.

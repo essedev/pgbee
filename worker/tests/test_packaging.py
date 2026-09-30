@@ -62,6 +62,11 @@ def functions(conn: psycopg.Connection[DictRow]) -> list[tuple[str, bool]]:
     return [(r["sig"], r["prosecdef"]) for r in rows]
 
 
+def output_types(conn: psycopg.Connection[DictRow]) -> list[str]:
+    rows = conn.execute("SELECT unnest(enum_range(NULL::bee.output_type))::text AS v").fetchall()
+    return [r["v"] for r in rows]
+
+
 @pytest.mark.extension
 async def test_create_extension_runs_the_whole_cycle(ext_db: str) -> None:
     with psycopg.connect(ext_db, autocommit=True, row_factory=dict_row) as conn:
@@ -86,16 +91,25 @@ async def test_create_extension_runs_the_whole_cycle(ext_db: str) -> None:
 def test_updating_from_the_first_version_equals_a_fresh_install(ext_db: str) -> None:
     with psycopg.connect(ext_db, autocommit=True, row_factory=dict_row) as conn:
         conn.execute("CREATE EXTENSION pgbee")
-        fresh = functions(conn)
+        fresh = functions(conn), output_types(conn)
         conn.execute("DROP EXTENSION pgbee CASCADE")
         conn.execute("DROP SCHEMA IF EXISTS bee CASCADE")
         conn.execute("CREATE EXTENSION pgbee VERSION '0.1'")
         conn.execute("ALTER EXTENSION pgbee UPDATE")
-        assert functions(conn) == fresh
+        assert (functions(conn), output_types(conn)) == fresh
         version = conn.execute(
             "SELECT extversion FROM pg_extension WHERE extname = 'pgbee'"
         ).fetchone()
         assert version == {"extversion": f"0.{sql_files()[-1].version}"}
+        # An enum value added by an update script is usable once the update has committed.
+        conn.execute("CREATE EXTENSION vector")
+        conn.execute("CREATE TABLE doc (id serial PRIMARY KEY, body text NOT NULL)")
+        conn.execute(
+            "SELECT bee.add_column('doc', 'embedding', array['body'], 'halfvec',"
+            " p_backend => 'embedding', p_model => 'm', p_output_schema => '{\"dimensions\": 3}')"
+        )
+        column = conn.execute("SELECT bee._column_type('doc', 'embedding') AS t").fetchone()
+        assert column == {"t": "halfvec(3)"}
 
 
 @pytest.mark.extension

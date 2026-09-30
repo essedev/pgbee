@@ -479,6 +479,53 @@ def test_embedding_backend_writes_vector(conn: psycopg.Connection[DictRow], tick
         )
 
 
+def test_embedding_backend_writes_halfvec(conn: psycopg.Connection[DictRow], ticket: str) -> None:
+    conn.execute(
+        "SELECT bee.add_column('ticket', 'embedding', array['body'], 'halfvec', p_backend => 'embedding',"
+        " p_model => 'openai/text-embedding-3-large', p_output_schema => '{\"dimensions\": 3}')"
+    )
+    col = conn.execute("SELECT bee._column_type('ticket', 'embedding') AS t").fetchone()
+    assert col is not None and col["t"] == "halfvec(3)"
+    job = claim(conn, 1)[0]
+    assert job["output_type"] == "halfvec"
+    with pytest.raises(psycopg.errors.CheckViolation):
+        complete(conn, job, [0.5, 0.25], confidence=None)
+    assert complete(conn, job, [0.5, 0.25, 0.125], confidence=None) == "written"
+    vec = conn.execute(
+        "SELECT embedding::text AS v FROM ticket WHERE id = %s", (job["row_pk"]["id"],)
+    ).fetchone()
+    assert vec is not None and vec["v"] == "[0.5,0.25,0.125]"
+    with pytest.raises(psycopg.errors.RaiseException, match="dimensions cannot change"):
+        conn.execute(
+            "SELECT bee.update_column('ticket', 'embedding', p_output_schema => '{\"dimensions\": 4}')"
+        )
+
+
+def test_halfvec_uses_existing_column_and_needs_embedding(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    conn.execute("ALTER TABLE ticket ADD COLUMN embedding halfvec(3), ADD COLUMN other halfvec(3)")
+    conn.execute(
+        "SELECT bee.add_column('ticket', 'embedding', array['body'], 'halfvec', p_backend => 'embedding',"
+        " p_model => 'm', p_output_schema => '{\"dimensions\": 3}')"
+    )
+    with pytest.raises(psycopg.errors.RaiseException, match="exists with type halfvec"):
+        conn.execute(
+            "SELECT bee.add_column('ticket', 'other', array['body'], 'vector',"
+            " p_backend => 'embedding', p_model => 'm', p_output_schema => '{\"dimensions\": 3}')"
+        )
+    with pytest.raises(psycopg.errors.RaiseException, match="cannot produce a vector"):
+        conn.execute(
+            "SELECT bee.add_column('ticket', 'x', array['body'], 'halfvec', p_prompt => 'p',"
+            " p_model => 'm', p_output_schema => '{\"dimensions\": 3}')"
+        )
+    with pytest.raises(psycopg.errors.RaiseException, match="produces a vector or halfvec"):
+        conn.execute(
+            "SELECT bee.add_column('ticket', 'x', array['body'], 'text', p_backend => 'embedding',"
+            " p_model => 'm')"
+        )
+
+
 def test_other_output_types_are_cast(conn: psycopg.Connection[DictRow], ticket: str) -> None:
     for name, otype, _value in [
         ("is_billing", "boolean", True),

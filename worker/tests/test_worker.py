@@ -73,6 +73,21 @@ async def test_worker_fills_embedding_column_in_one_call(
     )
 
 
+async def test_worker_fills_halfvec_column(
+    conn: psycopg.Connection[DictRow], ticket: str, database_url: str
+) -> None:
+    conn.execute(
+        "SELECT bee.add_column('ticket', 'embedding', array['body'], 'halfvec', p_backend => 'embedding',"
+        " p_model => 'fake/embed', p_output_schema => '{\"dimensions\": 3}')"
+    )
+    stats = await run_once(database_url, FakeProvider())
+    assert stats.outcomes == {"written": 3}
+    row = conn.execute(
+        "SELECT body, embedding::text AS e, pg_typeof(embedding)::text AS t FROM ticket WHERE id = 3"
+    ).fetchone()
+    assert row is not None and row["t"] == "halfvec" and row["e"] == f"[{len(row['body'])},1,0]"
+
+
 async def test_worker_splits_embedding_calls_by_backend_batch_size(
     conn: psycopg.Connection[DictRow], ticket: str, database_url: str
 ) -> None:

@@ -24,7 +24,7 @@ Una colonna derivata dichiarata. La configurazione che cambia il risultato (prom
 | column_name | text | colonna target |
 | pk_columns | text[] | letta da `pg_constraint` in `add_column` |
 | source_columns | text[] | colonne che alimentano il modello |
-| output_type | bee.output_type | `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector` |
+| output_type | bee.output_type | `enum`, `text`, `boolean`, `integer`, `numeric`, `jsonb`, `vector`, `halfvec` |
 | current_version_id | bigint | versione corrente in `column_version`, nullable solo durante la creazione. Senza FK: formerebbe un ciclo con `column_version.column_def_id` e romperebbe il restore dell'estensione (0010) |
 | config | jsonb | `batch_size`, `max_attempts`, `backoff_base_seconds`, `confidence_threshold`, `low_confidence_policy` (`write`/`hold`), `override_policy` (`pin`/`until_source_change`), `concurrency`, `budget_usd` (numero in USD, null senza tetto), `budget_period` (`day`/`month`/`total`, default `month`), `backfill_chunk` (righe per chunk di backfill, 1-100000, default 1000), `lineage_retention_days` (intero >= 1, null per conservare tutto, default null), `input_usd_per_mtok` e `output_usd_per_mtok` (USD per milione di token, >= 0 o null: il worker li usa per il costo quando il provider non lo riporta). Validato da un trigger su insert e update |
 | enabled | boolean | disabilitata: i trigger restano ma non accodano |
@@ -47,7 +47,7 @@ Ogni configurazione che ha prodotto risultati. Non si modifica mai: un cambiamen
 | backend | bee.backend | `llm`, `decision`, `embedding`, `custom` |
 | prompt | text | istruzione per il modello, senza template; per `decision` sono le instructions della domanda; null per `embedding` e `custom` |
 | model | text | id del modello presso il provider del worker, es. `anthropic/claude-haiku-4.5` su OpenRouter o `qwen3:0.6b` su Ollama; per `custom` un nome libero che identifica il worker |
-| output_schema | jsonb | per `enum` la lista dei valori oppure un oggetto `{valore: descrizione}` (obbligatorio con `decision`, dove le descrizioni sono i criteri); per `boolean` con `decision` opzionale `{"true": ..., "false": ...}`; per `integer` e `numeric` con `decision` `{"levels": [2-10 descrizioni]}`; per `jsonb` il JSON schema; per `vector` `{"dimensions": 1024}`; per gli altri vincoli opzionali (min, max, max_length) |
+| output_schema | jsonb | per `enum` la lista dei valori oppure un oggetto `{valore: descrizione}` (obbligatorio con `decision`, dove le descrizioni sono i criteri); per `boolean` con `decision` opzionale `{"true": ..., "false": ...}`; per `integer` e `numeric` con `decision` `{"levels": [2-10 descrizioni]}`; per `jsonb` il JSON schema; per `vector` e `halfvec` `{"dimensions": 1024}`; per gli altri vincoli opzionali (min, max, max_length) |
 | backend_config | jsonb | parametri del backend: temperature per `llm`, batch size di chiamata per `embedding`, libero per `custom` |
 | created_at | timestamptz | |
 
