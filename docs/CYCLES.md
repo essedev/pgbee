@@ -173,3 +173,18 @@ Un ciclo è un'unità di lavoro chiusa. Il file tiene gli ultimi ~15; i più vec
 **Decisioni.** #25 (piani dell'autore fuori dal repository pubblico).
 
 **Prossimo passo.** Anteprima social del repository (Simone); M4 (demo UI) solo se la demo convince.
+
+## Ciclo 12 (30 settembre 2026): `halfvec` e rilascio 0.2.0
+
+**Obiettivo.** Primo uso di pgbee dentro un'applicazione vera, come coda unica per ingestion ed embedding: gli embedding vanno su `halfvec(1024)` con indice HNSW, e pgbee sapeva scrivere solo `vector`.
+
+**Fatto.**
+
+- Tipo di output `halfvec` nello 0015: `add_column` crea o accetta una colonna `halfvec(N)`, `complete_job` fa il cast, `update_column` blocca il cambio di dimensioni come per `vector`, `_validate_definition` richiede pgvector 0.7 o successivo. Il contratto del worker non cambia.
+- Il valore enum aggiunto con `ALTER TYPE ... ADD VALUE` non si può usare nella transazione che lo crea, e sia `pgbee install` sia `ALTER EXTENSION pgbee UPDATE` applicano un file per transazione: le funzioni SQL ridefinite nello stesso file confrontano `output_type::text`, perché il loro corpo viene analizzato alla creazione.
+- Test: scrittura, dimensioni sbagliate, colonna già esistente, rifiuto con `llm` e di un tipo diverso da un vettore con `embedding`, worker vero con provider finto su una colonna `halfvec`, e nella catena di update dell'estensione gli stessi valori enum di un'installazione nuova più un `add_column` `halfvec` dopo l'update. 99 test più 3 di estensione.
+- Rilascio 0.2.0: estensione 0.15, changelog con la sezione Upgrading.
+
+**Decisioni.** #26 (`halfvec` come tipo di output a sé).
+
+**Prossimo passo.** Raccogliere gli altri attriti dell'integrazione (installazione prima delle migrazioni dell'applicazione, test dell'applicazione che fanno da worker, backend `custom` per l'OCR) e decidere quali diventano prodotto.
