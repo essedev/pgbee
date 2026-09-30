@@ -2,9 +2,11 @@
 
 All notable changes to pgbee: the SQL extension, the worker contract and the reference worker (`pgbee` on PyPI, images on GHCR). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/); before 1.0 a minor version may change the worker contract, and the release notes say so under Upgrading.
 
-The package version (`0.1.0`) and the extension version (`0.N`, one per SQL file in `sql/`) are numbered separately. Each release lists the extension version it ships.
+The package version (`X.Y.Z`) and the extension version (`0.N`, one per SQL file in `sql/`) are numbered separately. Each release lists the extension version it ships.
 
 ## [Unreleased]
+
+## [0.2.0] - 2026-09-30
 
 ### Added
 
@@ -42,5 +44,6 @@ First public release.
 - Nothing to upgrade from. This release ships extension version 0.14 (SQL files 0001 to 0014). Install with `pgbee install`, or with `CREATE EXTENSION pgbee` after copying the files from `pgbee extension-files` (also attached to the GitHub release).
 - On managed services (tested on Neon) connect the worker directly, not through a transaction pooler: the pooler drops the notifications that wake the worker, which then only polls every `PGBEE_POLL_INTERVAL_SECONDS`.
 
-[Unreleased]: https://github.com/essedev/pgbee/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/essedev/pgbee/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/essedev/pgbee/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/essedev/pgbee/releases/tag/v0.1.0

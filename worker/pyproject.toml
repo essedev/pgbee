@@ -1,6 +1,6 @@
 [project]
 name = "pgbee"
-version = "0.1.0"
+version = "0.2.0"
 description = "Reference worker and installer for pgbee derived columns on PostgreSQL"
 authors = [
     { name = "Simone Salerno", email = "doppiaesse@proton.me" }
