@@ -85,7 +85,7 @@ Il lineage: ogni valore mai prodotto per una riga e colonna, da modello o da uma
 | column_version_id | bigint | FK, null per i risultati umani |
 | row_pk | jsonb | |
 | source_hash | bytea | sorgenti su cui il valore è stato calcolato |
-| value | jsonb | il valore, anche quando la policy `hold` non lo scrive nella colonna |
+| value | jsonb | il valore, anche quando la policy `hold` non lo scrive nella colonna; null per le colonne `vector` e `halfvec`, dove il valore sta solo nella colonna (dallo 0016) |
 | confidence | real | null per i risultati umani |
 | source | bee.result_source | `model`, `human` |
 | is_current | boolean | uno solo per riga e colonna |
@@ -129,11 +129,11 @@ Non conta le chiamate fallite dopo essere state pagate (output fuori schema): la
 
 ## Funzioni pubbliche
 
-Gestione: `bee.add_column`, `bee.update_column` (nuova versione), `bee.configure` (policy senza versione), `bee.drop_column`, `bee.enable`, `bee.disable`, `bee.backfill`, `bee.unpin`, `bee.retry_dead`, `bee.prune_jobs`, `bee.spent(def_id, period)`. Ogni funzione ha un `COMMENT` leggibile con `\df+ bee.*`.
+Gestione: `bee.add_column`, `bee.update_column` (nuova versione), `bee.configure` (policy senza versione), `bee.drop_column`, `bee.enable`, `bee.disable`, `bee.backfill`, `bee.unpin`, `bee.retry_dead`, `bee.prune_jobs`, `bee.spent(def_id, period)`, `bee.definition(table, column)` (definizione corrente senza i contatori di `bee.columns`). Ogni funzione ha un `COMMENT` leggibile con `\df+ bee.*`.
 
 Contratto worker: `bee.claim_jobs(worker_id, batch_size, backends[])`, `bee.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms, details)` che restituisce `bee.complete_outcome` (`written`, `held`, `stale_requeued`, `cancelled`), `bee.fail_job(job_id, error, retryable)` che restituisce lo stato risultante, `bee.reclaim_stale(timeout)`, e per la manutenzione `bee.prune(limit, jobs_older_than)` che restituisce `(results, jobs)` cancellati, ciascuno al massimo `limit`. `claim_jobs` fa avanzare i backfill in corso prima e dopo aver preso i job, salta le definizioni con budget esaurito e aggiunge ai job `decision` scelti i job `decision` pronti delle stesse righe e dello stesso modello, quindi può restituire più di `batch_size` righe. Canale `NOTIFY bee_jobs` con l'id della definizione a ogni accodamento e a ogni `bee.configure` (alzare un budget sveglia subito i worker).
 
-Trigger per tabella utente: `bee_enqueue_<column>` (AFTER INSERT OR UPDATE OF sorgenti) e `bee_override_<column>` (AFTER UPDATE OF target). Il secondo ignora le scritture fatte dentro `complete_job` (GUC `bee.writer = 'worker'`); un UPDATE a NULL fatto a mano toglie il pin e riaccoda la riga.
+Trigger per tabella utente: `bee_enqueue_<column>` (AFTER INSERT OR UPDATE OF sorgenti), `bee_override_<column>` (AFTER UPDATE OF target), `bee_forget_<column>` (AFTER DELETE, per riga) e `bee_forget_all_<column>` (AFTER TRUNCATE): gli ultimi due tolgono il risultato corrente e cancellano i job vivi delle righe che spariscono. Il secondo ignora le scritture fatte dentro `complete_job` (GUC `bee.writer = 'worker'`); un UPDATE a NULL fatto a mano toglie il pin e riaccoda la riga.
 
 ## Ruoli e privilegi
 
@@ -141,7 +141,7 @@ Trigger per tabella utente: `bee_enqueue_<column>` (AFTER INSERT OR UPDATE OF so
 
 ## Relazioni
 
-`column_def` 1-N `column_version`; `column_def` 1-N `job`; `column_def` 1-N `result`; `column_version` 1-N `result`; `column_def` 1-N `spend`. Le tabelle dell'utente non hanno FK verso lo schema `bee`: il legame è per `row_pk`, e la cancellazione di una riga utente lascia il lineage orfano di proposito (storia).
+`column_def` 1-N `column_version`; `column_def` 1-N `job`; `column_def` 1-N `result`; `column_version` 1-N `result`; `column_def` 1-N `spend`. Le tabelle dell'utente non hanno FK verso lo schema `bee`: il legame è per `row_pk`, e la cancellazione di una riga utente lascia il suo lineage come storia, non più corrente, potato dalla retention come ogni valore superato (dallo 0016; prima restava corrente per sempre).
 
 ## Migrazioni
 

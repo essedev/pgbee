@@ -80,7 +80,12 @@ def test_add_column_creates_column_triggers_and_backfills(
     triggers = conn.execute(
         "SELECT tgname FROM pg_trigger WHERE tgrelid = 'ticket'::regclass AND NOT tgisinternal ORDER BY tgname"
     ).fetchall()
-    assert [t["tgname"] for t in triggers] == ["bee_enqueue_urgency", "bee_override_urgency"]
+    assert [t["tgname"] for t in triggers] == [
+        "bee_enqueue_urgency",
+        "bee_forget_all_urgency",
+        "bee_forget_urgency",
+        "bee_override_urgency",
+    ]
     assert len(jobs(conn, "pending")) == 3
     view = conn.execute("SELECT * FROM bee.columns").fetchone()
     assert view is not None
@@ -716,3 +721,105 @@ def test_result_computed_before_a_new_version_is_not_taken_for_it(
     assert complete(conn, again[1], "high") == "written"
     assert urgency_of(conn, 1) == "high"
     assert scalar(conn, "SELECT count(*) FROM bee.stale_rows") == 0
+
+
+def current_results(conn: psycopg.Connection[DictRow], ticket_id: int) -> int:
+    row = conn.execute(
+        "SELECT count(*) AS n FROM bee.result WHERE is_current AND row_pk = jsonb_build_object('id', %s)",
+        (ticket_id,),
+    ).fetchone()
+    assert row is not None
+    return int(row["n"])
+
+
+def test_deleted_row_leaves_the_lineage_and_its_jobs(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    first, second, *_ = claim(conn, 10)
+    complete(conn, first, "high")
+    ticket_id = first["row_pk"]["id"]
+    assert current_results(conn, ticket_id) == 1
+
+    conn.execute("DELETE FROM ticket WHERE id IN (%s, %s)", (ticket_id, second["row_pk"]["id"]))
+    assert current_results(conn, ticket_id) == 0
+    assert conn.execute("SELECT count(*) AS n FROM bee.result").fetchone() == {"n": 1}
+    live = [j for j in jobs(conn) if j["row_pk"]["id"] == second["row_pk"]["id"]]
+    assert live == []
+    # The worker finishing a job of a deleted row learns it was cancelled.
+    assert complete(conn, second, "low") == "cancelled"
+
+
+def test_row_inserted_again_with_the_same_key_is_computed(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    for job in claim(conn, 10):
+        complete(conn, job, "low")
+    row = conn.execute("SELECT id, body FROM ticket ORDER BY id LIMIT 1").fetchone()
+    assert row is not None
+    conn.execute("DELETE FROM ticket WHERE id = %s", (row["id"],))
+    conn.execute("INSERT INTO ticket (id, body) VALUES (%s, %s)", (row["id"], row["body"]))
+    assert [j["row_pk"]["id"] for j in jobs(conn, "pending")] == [row["id"]]
+
+
+def test_truncate_retires_the_whole_column(conn: psycopg.Connection[DictRow], ticket: str) -> None:
+    add_urgency(conn)
+    jobs_claimed = claim(conn, 10)
+    complete(conn, jobs_claimed[0], "high")
+    conn.execute("TRUNCATE ticket")
+    assert conn.execute("SELECT count(*) AS n FROM bee.result WHERE is_current").fetchone() == {
+        "n": 0
+    }
+    assert jobs(conn, "pending") == [] and jobs(conn, "claimed") == []
+
+
+def test_vector_values_are_not_copied_into_the_lineage(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    conn.execute(
+        "SELECT bee.add_column('ticket', 'embedding', array['body'], 'halfvec', p_backend => 'embedding',"
+        " p_model => 'm', p_output_schema => '{\"dimensions\": 3}')"
+    )
+    job = claim(conn, 1)[0]
+    assert complete(conn, job, [0.5, 0.25, 0.125], confidence=None) == "written"
+    result = conn.execute("SELECT value FROM bee.result WHERE is_current").fetchone()
+    assert result == {"value": None}
+    vec = conn.execute(
+        "SELECT embedding::text AS v FROM ticket WHERE id = %s", (job["row_pk"]["id"],)
+    ).fetchone()
+    assert vec == {"v": "[0.5,0.25,0.125]"}
+
+
+def test_definition_returns_the_current_version(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    conn.execute("SELECT bee.update_column('ticket', 'urgency', p_model => 'openai/gpt-6-luna')")
+    definition = conn.execute("SELECT * FROM bee.definition('ticket', 'urgency')").fetchone()
+    assert definition is not None
+    assert (definition["version"], definition["backend"], definition["model"]) == (
+        2,
+        "llm",
+        "openai/gpt-6-luna",
+    )
+    assert definition["output_schema"] == ["low", "medium", "high"]
+    with pytest.raises(psycopg.errors.UndefinedColumn):
+        conn.execute("SELECT * FROM bee.definition('ticket', 'body')")
+
+
+def test_drop_column_removes_the_forget_triggers(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    names = "SELECT array_agg(tgname::text ORDER BY tgname) AS t FROM pg_trigger WHERE tgrelid = 'ticket'::regclass"
+    assert conn.execute(names).fetchone() == {
+        "t": [
+            "bee_enqueue_urgency",
+            "bee_forget_all_urgency",
+            "bee_forget_urgency",
+            "bee_override_urgency",
+        ]
+    }
+    conn.execute("SELECT bee.drop_column('ticket', 'urgency')")
+    assert conn.execute(names).fetchone() == {"t": None}

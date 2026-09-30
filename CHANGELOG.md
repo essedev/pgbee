@@ -6,6 +6,22 @@ The package version (`X.Y.Z`) and the extension version (`0.N`, one per SQL file
 
 ## [Unreleased]
 
+### Added
+
+- `bee.definition(p_table, p_column)`: the current definition of a derived column (version, backend, model, prompt, output schema, backend config, config) without the queue counters of `bee.columns`, cheap enough to read on every request.
+
+### Changed
+
+- Results of `vector` and `halfvec` columns no longer copy the vector into `bee.result.value`, which stays null: the column holds the value, and the copy took ten times its space as jsonb.
+
+### Fixed
+
+- A deleted row kept a current result forever, so its lineage was never pruned, and a row deleted and inserted again with the same key and sources was never computed. Deleting a row, or truncating the table, now retires its current result to the superseded lineage and drops its live jobs.
+
+### Upgrading
+
+- Extension version 0.16 (`0016_forget_deleted_rows.sql`): run `pgbee install`, or `ALTER EXTENSION pgbee UPDATE`. The update installs two triggers on every table with a derived column (`bee_forget_<column>`, `bee_forget_all_<column>`), retires the current results of rows that no longer exist with one anti-join per table, and clears the vectors stored in the lineage: on large tables and lineages it takes a while and locks the rows it updates. The worker contract does not change.
+
 ## [0.2.0] - 2026-09-30
 
 ### Added

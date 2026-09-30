@@ -150,3 +150,35 @@ def test_dump_and_restore_keep_definitions_lineage_and_spend(ext_db: str) -> Non
     finally:
         with psycopg.connect(EXT_URL, autocommit=True) as admin:
             admin.execute(f"DROP DATABASE IF EXISTS {restored} WITH (FORCE)")
+
+
+@pytest.mark.extension
+def test_update_to_0016_retires_orphans_and_vector_copies(ext_db: str) -> None:
+    with psycopg.connect(ext_db, autocommit=True, row_factory=dict_row) as conn:
+        conn.execute("CREATE EXTENSION vector")
+        conn.execute("CREATE EXTENSION pgbee VERSION '0.15'")
+        conn.execute("CREATE TABLE doc (id serial PRIMARY KEY, body text NOT NULL)")
+        conn.execute("INSERT INTO doc (body) VALUES ('uno'), ('due')")
+        conn.execute(
+            "SELECT bee.add_column('doc', 'embedding', array['body'], 'halfvec',"
+            " p_backend => 'embedding', p_model => 'm', p_output_schema => '{\"dimensions\": 2}')"
+        )
+        for job in conn.execute("SELECT * FROM bee.claim_jobs('w', 10)").fetchall():
+            conn.execute(
+                "SELECT bee.complete_job(%s, %s, '[0.5, 0.25]'::jsonb)",
+                (job["job_id"], job["source_hash"]),
+            )
+        conn.execute("DELETE FROM doc WHERE id = 1")
+        current = "SELECT count(*) AS n FROM bee.result WHERE is_current"
+        with_value = "SELECT count(*) AS n FROM bee.result WHERE value IS NOT NULL"
+        assert conn.execute(current).fetchone() == {"n": 2}
+        assert conn.execute(with_value).fetchone() == {"n": 2}
+
+        conn.execute("ALTER EXTENSION pgbee UPDATE TO '0.16'")
+        assert conn.execute(current).fetchone() == {"n": 1}
+        assert conn.execute(with_value).fetchone() == {"n": 0}
+        triggers = conn.execute(
+            "SELECT array_agg(tgname::text ORDER BY tgname) AS t FROM pg_trigger"
+            " WHERE tgrelid = 'doc'::regclass"
+        ).fetchone()
+        assert triggers is not None and "bee_forget_embedding" in triggers["t"]

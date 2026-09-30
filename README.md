@@ -115,6 +115,7 @@ The outbox fixes lost rows and nothing else: stale values come from rows edited 
 | `bee.unpin(p_table, p_column, '{"id": 42}')` | Releases a human override and recomputes the row. Setting the column to NULL by hand does the same. |
 | `bee.retry_dead(p_table, p_column)` | Puts failed jobs back in the queue. |
 | `bee.spent(p_def_id, p_period)` | USD spent by a column in the current day, month, or in total. |
+| `bee.definition(p_table, p_column)` | The current definition (version, backend, model, prompt, schemas, config) without the queue counters of `bee.columns`: cheap enough to read on every request, for example to embed queries with the same model as the column. |
 
 Parameters are named with a `p_` prefix, so named notation reads `p_prompt => '...'`. `p_output_schema`: for `enum` an array of values or an object `{"value": "description"}` (descriptions are required by `decision`); for `vector` and `halfvec` `{"dimensions": N}`; for `decision` scores `{"levels": [...]}`. `p_backend_config` is passed to the provider: `{"reasoning": {"effort": "low"}}`, `temperature`, `max_tokens`, `dimensions`, `batch_size` for embeddings.
 
@@ -199,6 +200,19 @@ With both keys set OpenRouter wins; `PGBEE_PROVIDER=openai` or `openrouter` forc
 - **Budgets are checked when jobs are claimed**, so a cap can be exceeded by one batch in flight. Calls that were paid for but returned an invalid answer are not counted.
 - **One provider per worker process:** OpenRouter or one OpenAI-compatible endpoint (see [Model providers](#model-providers)). `decision` uses OpenRouter's decisions API, still marked alpha. Anything else means a provider class in the worker or your own worker: the SQL contract does not depend on any provider.
 - **Writing the value a cell already holds is not an override.** ORMs often rewrite every column on save, so only a change counts as a human correction.
+- **Deleted rows leave the current lineage.** A deleted row (or a truncated table) keeps its history as superseded results, pruned by `lineage_retention_days`, and its live jobs are dropped; a row inserted again with the same key is computed again.
+- **Vectors are not copied into the lineage.** For `vector` and `halfvec` columns `bee.result` records model, cost and version but no value: the column holds it.
+
+## Testing an application that uses pgbee
+
+Your tests do not need a worker or a model: play the worker with the contract functions. Claim the jobs of a backend and complete them with values of your choice, in the same database your tests use:
+
+```sql
+SELECT job_id, source_hash, source FROM bee.claim_jobs('test', 100, array['embedding']::bee.backend[]);
+SELECT bee.complete_job(<job_id>, <source_hash>, '[0.1, 0.2, 0.3]'::jsonb);  -- per claimed job
+```
+
+A `custom` backend is exactly this in production: your code claims its jobs and completes them.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
