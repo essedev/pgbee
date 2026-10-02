@@ -245,6 +245,112 @@ def test_fail_job_backs_off_then_dies(conn: psycopg.Connection[DictRow], ticket:
     assert jobs(conn, "pending")[0]["attempts"] == 0
 
 
+def test_requeue_uses_the_current_source_even_with_a_current_model_result(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    for job in claim(conn):
+        complete(conn, job, "low")
+    assert conn.execute(
+        "SELECT bee.requeue('ticket', 'urgency', '{\"id\": 1}') AS queued"
+    ).fetchone() == {"queued": True}
+    assert len(jobs(conn, "pending")) == 1
+    conn.execute("UPDATE ticket SET body = 'Restored document' WHERE id = 1")
+    conn.execute("DELETE FROM bee.job WHERE row_pk = '{\"id\": 1}'::jsonb AND status = 'pending'")
+
+    row = conn.execute(
+        "SELECT bee.requeue('ticket', 'urgency', '{\"id\": 1}') AS queued"
+    ).fetchone()
+    assert row == {"queued": True}
+    queued = jobs(conn, "pending")
+    assert len(queued) == 1 and queued[0]["row_pk"] == {"id": 1}
+    expected = conn.execute(
+        "SELECT bee._source_hash(to_jsonb(t), ARRAY['body']) AS hash FROM ticket t WHERE id = 1"
+    ).fetchone()
+    assert expected is not None and queued[0]["source_hash"] == expected["hash"]
+    assert conn.execute(
+        "SELECT bee.requeue('ticket', 'urgency', '{\"id\": 1}') AS queued"
+    ).fetchone() == {"queued": True}
+    assert len(jobs(conn, "pending")) == 1
+
+
+def test_requeue_skips_human_result_and_missing_row(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    conn.execute("UPDATE ticket SET urgency = 'high' WHERE id = 1")
+    conn.execute("DELETE FROM bee.job")
+    assert conn.execute(
+        "SELECT bee.requeue('ticket', 'urgency', '{\"id\": 1}') AS queued"
+    ).fetchone() == {"queued": False}
+    assert conn.execute(
+        "SELECT bee.requeue('ticket', 'urgency', '{\"id\": 1, \"extra\": true}') AS queued"
+    ).fetchone() == {"queued": False}
+    assert conn.execute(
+        "SELECT bee.requeue('ticket', 'urgency', '{\"id\": 999}') AS queued"
+    ).fetchone() == {"queued": False}
+    assert jobs(conn) == []
+    assert conn.execute(
+        "SELECT source, is_current FROM bee.result WHERE row_pk = '{\"id\": 1}'::jsonb"
+    ).fetchone() == {"source": "human", "is_current": True}
+
+
+def test_retry_dead_row_only_retries_the_requested_row(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    for job in claim(conn):
+        conn.execute("SELECT bee.fail_job(%s, 'failed', false)", (job["job_id"],))
+    assert conn.execute(
+        "SELECT bee.retry_dead_row('ticket', 'urgency', '{\"id\": 1}') AS retried"
+    ).fetchone() == {"retried": True}
+    rows = conn.execute(
+        "SELECT row_pk, status, attempts, last_error FROM bee.job ORDER BY (row_pk ->> 'id')::int"
+    ).fetchall()
+    assert rows == [
+        {"row_pk": {"id": 1}, "status": "pending", "attempts": 0, "last_error": "failed"},
+        {"row_pk": {"id": 2}, "status": "dead", "attempts": 1, "last_error": "failed"},
+        {"row_pk": {"id": 3}, "status": "dead", "attempts": 1, "last_error": "failed"},
+    ]
+    assert conn.execute(
+        "SELECT bee.retry_dead_row('ticket', 'urgency', '{\"id\": 1}') AS retried"
+    ).fetchone() == {"retried": False}
+    assert conn.execute(
+        "SELECT bee.retry_dead_row('ticket', 'urgency', '{\"id\": 999}') AS retried"
+    ).fetchone() == {"retried": False}
+
+
+def test_retry_dead_row_discards_older_dead_jobs_and_skips_live_job(
+    conn: psycopg.Connection[DictRow], ticket: str
+) -> None:
+    add_urgency(conn)
+    conn.execute("DELETE FROM bee.job WHERE row_pk <> '{\"id\": 1}'::jsonb")
+    first = claim(conn)[0]
+    conn.execute("SELECT bee.fail_job(%s, 'first', false)", (first["job_id"],))
+    assert conn.execute(
+        "SELECT bee.requeue('ticket', 'urgency', '{\"id\": 1}') AS queued"
+    ).fetchone() == {"queued": True}
+    second = claim(conn)[0]
+    conn.execute("SELECT bee.fail_job(%s, 'second', false)", (second["job_id"],))
+    assert len(jobs(conn, "dead")) == 2
+    assert conn.execute(
+        "SELECT bee.retry_dead_row('ticket', 'urgency', '{\"id\": 1}') AS retried"
+    ).fetchone() == {"retried": True}
+    assert len(jobs(conn, "pending")) == 1
+    assert jobs(conn, "pending")[0]["id"] == second["job_id"]
+    assert jobs(conn, "dead") == []
+    conn.execute(
+        "INSERT INTO bee.job (column_def_id, row_pk, source_hash, status) "
+        "SELECT column_def_id, row_pk, source_hash, 'dead' "
+        "FROM bee.job WHERE id = %s",
+        (second["job_id"],),
+    )
+    assert conn.execute(
+        "SELECT bee.retry_dead_row('ticket', 'urgency', '{\"id\": 1}') AS retried"
+    ).fetchone() == {"retried": False}
+    assert len(jobs(conn, "pending")) == 1 and jobs(conn, "dead") == []
+
+
 def test_non_retryable_failure_dies_immediately(
     conn: psycopg.Connection[DictRow], ticket: str
 ) -> None:

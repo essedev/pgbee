@@ -129,7 +129,7 @@ Non conta le chiamate fallite dopo essere state pagate (output fuori schema): la
 
 ## Funzioni pubbliche
 
-Gestione: `bee.add_column`, `bee.update_column` (nuova versione), `bee.configure` (policy senza versione), `bee.drop_column`, `bee.enable`, `bee.disable`, `bee.backfill`, `bee.unpin`, `bee.retry_dead`, `bee.prune_jobs`, `bee.spent(def_id, period)`, `bee.definition(table, column)` (definizione corrente senza i contatori di `bee.columns`). Ogni funzione ha un `COMMENT` leggibile con `\df+ bee.*`.
+Gestione: `bee.add_column`, `bee.update_column` (nuova versione), `bee.configure` (policy senza versione), `bee.drop_column`, `bee.enable`, `bee.disable`, `bee.backfill`, `bee.unpin`, `bee.requeue(table, column, row_pk)` (forza un job con l'hash delle sorgenti attuali, salvo risultato umano, riga assente o colonna disabilitata), `bee.retry_dead`, `bee.retry_dead_row(table, column, row_pk)` (riattiva solo il job morto più recente della riga), `bee.prune_jobs`, `bee.spent(def_id, period)`, `bee.definition(table, column)` (definizione corrente senza i contatori di `bee.columns`). Ogni funzione ha un `COMMENT` leggibile con `\df+ bee.*`.
 
 Contratto worker: `bee.claim_jobs(worker_id, batch_size, backends[])`, `bee.complete_job(job_id, source_hash, value, confidence, model, usage, latency_ms, details)` che restituisce `bee.complete_outcome` (`written`, `held`, `stale_requeued`, `cancelled`), `bee.fail_job(job_id, error, retryable)` che restituisce lo stato risultante, `bee.reclaim_stale(timeout)`, e per la manutenzione `bee.prune(limit, jobs_older_than)` che restituisce `(results, jobs)` cancellati, ciascuno al massimo `limit`. `claim_jobs` fa avanzare i backfill in corso prima e dopo aver preso i job, salta le definizioni con budget esaurito e aggiunge ai job `decision` scelti i job `decision` pronti delle stesse righe e dello stesso modello, quindi può restituire più di `batch_size` righe. Canale `NOTIFY bee_jobs` con l'id della definizione a ogni accodamento e a ogni `bee.configure` (alzare un budget sveglia subito i worker).
 
@@ -138,6 +138,8 @@ Trigger per tabella utente: `bee_enqueue_<column>` (AFTER INSERT OR UPDATE OF so
 ## Ruoli e privilegi
 
 `bee_worker` (NOLOGIN, creato dall'install): `USAGE` sullo schema `bee`, `EXECUTE` su `claim_jobs`, `complete_job`, `fail_job`, `reclaim_stale`, `prune` (revocato a `PUBLIC`), `SELECT` su `bee.columns`, `bee.budgets`, `bee.dead_jobs`, `bee.needs_review`, `bee.stale_rows`, `bee.cost_by_column`. Le funzioni del contratto, `bee.prune` e le funzioni trigger `bee.enqueue_trigger` e `bee.override_trigger` sono `SECURITY DEFINER` con `search_path = pg_catalog, pg_temp`.
+
+`bee.requeue` e `bee.retry_dead_row` sono `SECURITY DEFINER` con lo stesso `search_path`, ma `EXECUTE` è revocato a `PUBLIC` e non è concesso a `bee_worker`: restano al proprietario dell'estensione, che può concedere `USAGE` sullo schema ed `EXECUTE` sulle singole funzioni a un ruolo applicativo.
 
 ## Relazioni
 

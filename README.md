@@ -113,11 +113,15 @@ The outbox fixes lost rows and nothing else: stale values come from rows edited 
 | `bee.disable(p_table, p_column)` / `bee.enable(p_table, p_column)` | Pause and resume. `enable` recomputes the rows that changed meanwhile. |
 | `bee.drop_column(p_table, p_column, p_drop_target => false)` | Stops deriving the column. Keeps the lineage; drops the column only when asked. |
 | `bee.unpin(p_table, p_column, '{"id": 42}')` | Releases a human override and recomputes the row. Setting the column to NULL by hand does the same. |
+| `bee.requeue(p_table, p_column, '{"id": 42}')` | Forces one existing row into the queue using its current sources, even if its model result is current. Returns false for a missing row, disabled column or human result. |
 | `bee.retry_dead(p_table, p_column)` | Puts failed jobs back in the queue. |
+| `bee.retry_dead_row(p_table, p_column, '{"id": 42}')` | Retries only that row's newest dead job with a fresh attempt budget; returns false when none is retried. |
 | `bee.spent(p_def_id, p_period)` | USD spent by a column in the current day, month, or in total. |
 | `bee.definition(p_table, p_column)` | The current definition (version, backend, model, prompt, schemas, config) without the queue counters of `bee.columns`: cheap enough to read on every request, for example to embed queries with the same model as the column. |
 
 Parameters are named with a `p_` prefix, so named notation reads `p_prompt => '...'`. `p_output_schema`: for `enum` an array of values or an object `{"value": "description"}` (descriptions are required by `decision`); for `vector` and `halfvec` `{"dimensions": N}`; for `decision` scores `{"levels": [...]}`. `p_backend_config` is passed to the provider: `{"reasoning": {"effort": "low"}}`, `temperature`, `max_tokens`, `dimensions`, `batch_size` for embeddings.
+
+The row management functions run as the extension owner and are executable by that owner. To call them from a separate application role, the owner grants `USAGE ON SCHEMA bee` and `EXECUTE` on the specific functions to that role. They are not granted to `bee_worker`.
 
 ### Settings (`p_config`, per column)
 

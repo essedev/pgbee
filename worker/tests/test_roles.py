@@ -25,6 +25,7 @@ CONTRACT = [
     "bee.prune(integer, interval)",
 ]
 DEFINER = [*CONTRACT, "bee.enqueue_trigger()", "bee.override_trigger()"]
+ROW_MANAGEMENT = ["bee.requeue(regclass, text, jsonb)", "bee.retry_dead_row(regclass, text, jsonb)"]
 
 
 def url_as(database_url: str, role: str) -> str:
@@ -63,7 +64,7 @@ def app_ticket(conn: psycopg.Connection[DictRow], ticket: str, roles: None) -> s
 
 
 def test_contract_runs_as_owner_and_is_not_public(conn: psycopg.Connection[DictRow]) -> None:
-    for signature in DEFINER:
+    for signature in [*DEFINER, *ROW_MANAGEMENT]:
         row = conn.execute(
             "SELECT p.prosecdef, p.proconfig FROM pg_proc p WHERE p.oid = %s::regprocedure",
             (signature,),
@@ -76,6 +77,28 @@ def test_contract_runs_as_owner_and_is_not_public(conn: psycopg.Connection[DictR
             "SELECT has_function_privilege('public', %s, 'EXECUTE') AS ok", (signature,)
         ).fetchone()
         assert public == {"ok": False}, f"{signature} is executable by PUBLIC"
+    for signature in ROW_MANAGEMENT:
+        public = conn.execute(
+            "SELECT has_function_privilege('public', %s, 'EXECUTE') AS ok", (signature,)
+        ).fetchone()
+        worker = conn.execute(
+            "SELECT has_function_privilege('bee_worker', %s, 'EXECUTE') AS ok", (signature,)
+        ).fetchone()
+        assert public == {"ok": False} and worker == {"ok": False}
+
+
+def test_application_role_can_be_granted_row_management(
+    database_url: str, conn: psycopg.Connection[DictRow], app_ticket: str
+) -> None:
+    add_urgency(conn)
+    conn.execute(f"GRANT USAGE ON SCHEMA bee TO {APP_ROLE}")
+    conn.execute(f"GRANT EXECUTE ON FUNCTION bee.requeue(regclass, text, jsonb) TO {APP_ROLE}")
+    with psycopg.connect(url_as(database_url, APP_ROLE), autocommit=True) as app:
+        assert app.execute("SELECT bee.requeue('ticket', 'urgency', '{\"id\": 1}')").fetchone() == (
+            True,
+        )
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            app.execute("SELECT bee.retry_dead_row('ticket', 'urgency', '{\"id\": 1}')")
 
 
 async def test_worker_role_fills_columns_without_table_access(

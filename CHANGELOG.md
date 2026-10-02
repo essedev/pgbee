@@ -6,6 +6,14 @@ The package version (`X.Y.Z`) and the extension version (`0.N`, one per SQL file
 
 ## [Unreleased]
 
+### Added
+
+- `bee.requeue(p_table, p_column, p_row_pk)` queues one existing row from its current sources, even when a model result already exists, without changing human overrides. `bee.retry_dead_row(p_table, p_column, p_row_pk)` retries only that row's dead job instead of every dead job in the column. Both return whether a job was queued and require an explicit `EXECUTE` grant for separate application roles.
+
+### Upgrading
+
+- Extension version 0.17 (`0017_row_queue_management.sql`): run `pgbee install`, or `ALTER EXTENSION pgbee UPDATE`. Grant application roles `USAGE ON SCHEMA bee` and `EXECUTE` on the new functions as needed. The worker contract does not change.
+
 ## [0.3.0] - 2026-09-30
 
 ### Added
