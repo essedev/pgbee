@@ -6,6 +6,8 @@ The package version (`X.Y.Z`) and the extension version (`0.N`, one per SQL file
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-02
+
 ### Added
 
 - `bee.requeue(p_table, p_column, p_row_pk)` queues one existing row from its current sources, even when a model result already exists, without changing human overrides. `bee.retry_dead_row(p_table, p_column, p_row_pk)` retries only that row's dead job instead of every dead job in the column. Both return whether a job was queued and require an explicit `EXECUTE` grant for separate application roles.
@@ -70,7 +72,8 @@ First public release.
 - Nothing to upgrade from. This release ships extension version 0.14 (SQL files 0001 to 0014). Install with `pgbee install`, or with `CREATE EXTENSION pgbee` after copying the files from `pgbee extension-files` (also attached to the GitHub release).
 - On managed services (tested on Neon) connect the worker directly, not through a transaction pooler: the pooler drops the notifications that wake the worker, which then only polls every `PGBEE_POLL_INTERVAL_SECONDS`.
 
-[Unreleased]: https://github.com/essedev/pgbee/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/essedev/pgbee/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/essedev/pgbee/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/essedev/pgbee/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/essedev/pgbee/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/essedev/pgbee/releases/tag/v0.1.0
