@@ -76,11 +76,11 @@ extension-image: ## Build the Postgres image with CREATE EXTENSION pgbee availab
 	docker build -f docker/postgres/Dockerfile -t pgbee-postgres:dev worker/dist/extension
 
 test-extension: extension-image ## Extension tests (create, update chain, dump and restore) on a throwaway container, port 4463
-	docker rm -f pgbee-ext-test >/dev/null 2>&1 || true
+	docker rm -fv pgbee-ext-test >/dev/null 2>&1 || true
 	docker run -d --name pgbee-ext-test -e POSTGRES_USER=aidb -e POSTGRES_PASSWORD=aidb \
 		-e POSTGRES_DB=aidb -p 4463:5432 pgbee-postgres:dev >/dev/null
 	until docker exec pgbee-ext-test pg_isready -U aidb -h localhost >/dev/null 2>&1; do sleep 1; done
-	cd worker && uv run pytest -m extension; status=$$?; docker rm -f pgbee-ext-test >/dev/null; exit $$status
+	cd worker && uv run pytest -m extension; status=$$?; docker rm -fv pgbee-ext-test >/dev/null; exit $$status
 
 build: ## Build the worker wheel and sdist (SQL files included) into worker/dist
 	cd worker && rm -rf dist && uv build
