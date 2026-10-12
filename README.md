@@ -25,7 +25,7 @@ Any chat model with JSON schema output works, through OpenRouter, OpenAI, Azure 
 
 Calling a model from SQL is easy and many tools do it. The hard part, and the point of pgbee, is the state around the call: what is stale, what was overridden, what failed, what it costs. [Under failure](#under-failure) shows what goes wrong when that state lives in application code instead.
 
-**Status: alpha (0.1).** The test suite passes on PostgreSQL 15, 16, 17 and 18. A field test on 3000 real consumer complaints ran 12,000 model calls with no failure, and a failure test with crashes, outages and concurrent edits ended with no wrong value (numbers below). The whole suite and the worker also ran on a managed service, Neon (PostgreSQL 18, no superuser). Feedback and issues are welcome.
+**Status: alpha.** The test suite passes on PostgreSQL 15, 16, 17 and 18. A field test on 3000 real consumer complaints ran 12,000 model calls with no failure, and a failure test with crashes, outages and concurrent edits ended with no wrong value (numbers below). The whole suite and the worker also ran on a managed service, Neon (PostgreSQL 18, no superuser). Feedback and issues are welcome.
 
 ## Quickstart
 
