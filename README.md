@@ -12,14 +12,16 @@ https://github.com/user-attachments/assets/74aec8cd-bf80-423d-bfe9-67a49b83a422
 Like a worker bee filling cells: you declare how a column is derived from other columns, and pgbee keeps every row filled, versioned and accounted for.
 
 ```sql
-SELECT bee.add_column('ticket', 'category', array['body'], 'enum', 'decision',
+SELECT bee.add_column('ticket', 'category', array['body'], 'enum',
   p_prompt => 'What is this support ticket about?',
-  p_model  => 'typesafe/jev-1.13',
+  p_model  => 'openai/gpt-6-luna',
   p_output_schema => '{"bug": "something is broken", "billing": "charges and invoices",
                        "account": "login and account data", "question": "how to do something"}');
 ```
 
 From then on every new or changed row gets its `category`: the database queues the work in the same transaction as your insert, an external worker calls the model, and the value lands in the column. Change the prompt and only the rows computed with the old one are recomputed. Correct a value by hand and the model never overwrites it. Every value keeps its lineage: which model, which prompt version, which confidence, how much it cost.
+
+Any chat model with JSON schema output works, through OpenRouter, OpenAI, Azure or a local server. For classification, a decision model such as `typesafe/jev-1.13` (backend `'decision'`) answers with calibrated class probabilities instead of a confidence the model reports about itself.
 
 Calling a model from SQL is easy and many tools do it. The hard part, and the point of pgbee, is the state around the call: what is stale, what was overridden, what failed, what it costs. [Under failure](#under-failure) shows what goes wrong when that state lives in application code instead.
 
@@ -27,7 +29,7 @@ Calling a model from SQL is easy and many tools do it. The hard part, and the po
 
 ## Quickstart
 
-You need Docker and an [OpenRouter](https://openrouter.ai) key: the example uses a decision model that is only available there. The worker also runs on OpenAI, Azure or a local model, see [Model providers](#model-providers).
+You need Docker and an [OpenRouter](https://openrouter.ai) key: one key covers the three backends of the example, including a decision model that is only available there. The worker also runs on OpenAI, Azure or a local model, see [Model providers](#model-providers).
 
 ```bash
 git clone https://github.com/essedev/pgbee && cd pgbee
